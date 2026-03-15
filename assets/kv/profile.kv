@@ -1,0 +1,207 @@
+<ProfileScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTopAppBar:
+            title: "My Profile"
+            type: "small"
+
+        MDScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["16dp", "20dp", "16dp", "24dp"]
+                spacing: "12dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                # ── Row 1: personal stats ─────────────────────────────
+                MDCard:
+                    size_hint_y: None
+                    height: "96dp"
+                    padding: ["16dp", "12dp", "16dp", "12dp"]
+                    radius: [dp(12)]
+                    elevation: 2
+                    on_release: root.open_personal_dialog()
+
+                    MDBoxLayout:
+                        spacing: "4dp"
+
+                        # Height cell
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "4dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                id: height_value
+                                text: "—"
+                                font_style: "Title"
+                                role: "medium"
+                                halign: "center"
+                                size_hint_y: None
+                                height: "36dp"
+
+                            MDLabel:
+                                text: "Height"
+                                font_style: "Body"
+                                role: "small"
+                                halign: "center"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                        # Weight cell
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "4dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                id: weight_value
+                                text: "—"
+                                font_style: "Title"
+                                role: "medium"
+                                halign: "center"
+                                size_hint_y: None
+                                height: "36dp"
+
+                            MDLabel:
+                                text: "Weight"
+                                font_style: "Body"
+                                role: "small"
+                                halign: "center"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                        # Gender cell
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "4dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                id: gender_value
+                                text: "—"
+                                font_style: "Title"
+                                role: "medium"
+                                halign: "center"
+                                size_hint_y: None
+                                height: "36dp"
+
+                            MDLabel:
+                                text: "Gender"
+                                font_style: "Body"
+                                role: "small"
+                                halign: "center"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                        # Age cell
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "4dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                id: age_value
+                                text: "—"
+                                font_style: "Title"
+                                role: "medium"
+                                halign: "center"
+                                size_hint_y: None
+                                height: "36dp"
+
+                            MDLabel:
+                                text: "Age"
+                                font_style: "Body"
+                                role: "small"
+                                halign: "center"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                # ── Row 2: activity level ────────────────────────────
+                MDCard:
+                    size_hint_y: None
+                    height: "72dp"
+                    padding: ["16dp", "12dp", "16dp", "12dp"]
+                    radius: [dp(12)]
+                    elevation: 2
+                    on_release: root.open_activity_dialog()
+
+                    MDBoxLayout:
+                        spacing: "12dp"
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "2dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                text: "Activity Level"
+                                font_style: "Body"
+                                role: "small"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                            MDLabel:
+                                id: activity_value
+                                text: "Tap to set"
+                                font_style: "Title"
+                                role: "small"
+                                size_hint_y: None
+                                height: "28dp"
+
+                        MDLabel:
+                            text: "›"
+                            font_size: "22sp"
+                            size_hint_x: None
+                            width: "20dp"
+                            halign: "right"
+                            theme_text_color: "Secondary"
+                            pos_hint: {"center_y": 0.5}
+
+                # ── Row 3: goal ───────────────────────────────────────
+                MDCard:
+                    size_hint_y: None
+                    height: "72dp"
+                    padding: ["16dp", "12dp", "16dp", "12dp"]
+                    radius: [dp(12)]
+                    elevation: 2
+                    on_release: root.open_goal_dialog()
+
+                    MDBoxLayout:
+                        spacing: "12dp"
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "2dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                text: "Goal"
+                                font_style: "Body"
+                                role: "small"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                            MDLabel:
+                                id: goal_value
+                                text: "Tap to set"
+                                font_style: "Title"
+                                role: "small"
+                                size_hint_y: None
+                                height: "28dp"
+
+                        MDLabel:
+                            text: "›"
+                            font_size: "22sp"
+                            size_hint_x: None
+                            width: "20dp"
+                            halign: "right"
+                            theme_text_color: "Secondary"
+                            pos_hint: {"center_y": 0.5}

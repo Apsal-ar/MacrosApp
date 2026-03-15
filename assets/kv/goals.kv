@@ -1,0 +1,186 @@
+#:import DIET_PRESET_LABELS utils.constants.DIET_PRESET_LABELS
+
+<GoalsScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTopAppBar:
+            title: "My Goals"
+            type: "small"
+
+        MDScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["16dp", "16dp", "16dp", "24dp"]
+                spacing: "16dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                # ── Calorie target (read-only) ─────────────────────────
+                MDCard:
+                    padding: "16dp"
+                    radius: [dp(12)]
+                    elevation: 1
+                    size_hint_y: None
+                    height: "72dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "4dp"
+
+                        MDLabel:
+                            text: "Daily Calorie Target"
+                            font_style: "Label"
+                            role: "medium"
+                            theme_text_color: "Secondary"
+
+                        MDLabel:
+                            id: calorie_label
+                            text: "— Set profile data first —"
+                            font_style: "Title"
+                            role: "large"
+
+                # ── Diet preset picker ─────────────────────────────────
+                MDLabel:
+                    text: "Diet Preset"
+                    font_style: "Title"
+                    role: "small"
+                    size_hint_y: None
+                    height: "28dp"
+
+                MDDropDownItem:
+                    id: diet_dropdown
+                    size_hint_y: None
+                    height: "48dp"
+                    on_release: root.open_diet_menu()
+
+                    MDDropDownItemText:
+                        id: diet_text
+                        text: "Balanced"
+
+                # ── Macro sliders ──────────────────────────────────────
+                MDLabel:
+                    text: "Macro Split"
+                    font_style: "Title"
+                    role: "small"
+                    size_hint_y: None
+                    height: "28dp"
+
+                # Protein
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "24dp"
+
+                    MDLabel:
+                        id: protein_label
+                        text: "Protein: 30%"
+                        font_style: "Body"
+                        role: "medium"
+
+                MDSlider:
+                    id: protein_slider
+                    min: 5
+                    max: 70
+                    value: 30
+                    step: 1
+                    size_hint_y: None
+                    height: "40dp"
+                    on_value: root.on_protein_slider(self.value)
+
+                # Carbs
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "24dp"
+
+                    MDLabel:
+                        id: carbs_label
+                        text: "Carbs: 40%"
+                        font_style: "Body"
+                        role: "medium"
+
+                MDSlider:
+                    id: carbs_slider
+                    min: 5
+                    max: 75
+                    value: 40
+                    step: 1
+                    size_hint_y: None
+                    height: "40dp"
+                    on_value: root.on_carbs_slider(self.value)
+
+                # Fat
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "24dp"
+
+                    MDLabel:
+                        id: fat_label
+                        text: "Fat: 30%"
+                        font_style: "Body"
+                        role: "medium"
+
+                MDSlider:
+                    id: fat_slider
+                    min: 5
+                    max: 75
+                    value: 30
+                    step: 1
+                    size_hint_y: None
+                    height: "40dp"
+                    on_value: root.on_fat_slider(self.value)
+
+                # Gram targets display
+                MDLabel:
+                    id: grams_label
+                    text: "Protein: —g  |  Carbs: —g  |  Fat: —g"
+                    font_style: "Body"
+                    role: "medium"
+                    theme_text_color: "Secondary"
+                    halign: "center"
+                    size_hint_y: None
+                    height: "28dp"
+
+                # ── Pie chart ──────────────────────────────────────────
+                MacroPieChart:
+                    id: pie_chart
+                    protein_pct: root.protein_pct
+                    carbs_pct: root.carbs_pct
+                    fat_pct: root.fat_pct
+
+                # ── Meals per day ──────────────────────────────────────
+                MDLabel:
+                    text: "Meals per Day"
+                    font_style: "Title"
+                    role: "small"
+                    size_hint_y: None
+                    height: "28dp"
+
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "48dp"
+                    spacing: "8dp"
+
+                    MDSlider:
+                        id: meals_slider
+                        min: 1
+                        max: 6
+                        value: 3
+                        step: 1
+                        size_hint_x: 1
+
+                    MDLabel:
+                        id: meals_count_label
+                        text: str(int(meals_slider.value))
+                        size_hint_x: None
+                        width: "32dp"
+                        halign: "center"
+
+                # ── Save button ────────────────────────────────────────
+                MDButton:
+                    style: "filled"
+                    size_hint_x: 1
+                    height: "52dp"
+                    on_release: root.save_goals()
+
+                    MDButtonText:
+                        text: "Save Goals"

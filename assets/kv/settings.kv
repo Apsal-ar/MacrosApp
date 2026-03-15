@@ -1,0 +1,113 @@
+<SettingsScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTopAppBar:
+            title: "Settings"
+            type: "small"
+
+        MDScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["16dp", "8dp", "16dp", "24dp"]
+                spacing: "4dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                # ── Unit system ────────────────────────────────────────
+                MDListItem:
+                    MDListItemHeadlineText:
+                        text: "Unit System"
+
+                    MDListItemSupportingText:
+                        id: unit_label
+                        text: "Metric / Imperial"
+
+                    MDSwitch:
+                        id: unit_switch
+                        pos_hint: {"center_y": 0.5}
+                        on_active: root.on_unit_toggled(self.active)
+
+                MDDivider:
+
+                # ── My Foods ───────────────────────────────────────────
+                MDLabel:
+                    text: "My Foods"
+                    font_style: "Title"
+                    role: "small"
+                    padding: ["16dp", "12dp"]
+                    size_hint_y: None
+                    height: "44dp"
+
+                MDBoxLayout:
+                    id: my_foods_list
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                MDDivider:
+
+                # ── Sync ───────────────────────────────────────────────
+                MDLabel:
+                    text: "Sync"
+                    font_style: "Title"
+                    role: "small"
+                    padding: ["16dp", "12dp"]
+                    size_hint_y: None
+                    height: "44dp"
+
+                MDListItem:
+                    MDListItemHeadlineText:
+                        id: online_indicator
+                        text: "Offline"
+
+                    MDListItemSupportingText:
+                        id: sync_status_label
+                        text: "Last sync: Never  •  Pending: 0"
+
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "56dp"
+                    padding: ["16dp", "4dp"]
+
+                    MDButton:
+                        style: "outlined"
+                        size_hint_x: 1
+                        on_release: root.sync_now()
+
+                        MDButtonText:
+                            text: "Sync Now"
+
+                MDDivider:
+
+                # ── Export ─────────────────────────────────────────────
+                MDLabel:
+                    text: "Data"
+                    font_style: "Title"
+                    role: "small"
+                    padding: ["16dp", "12dp"]
+                    size_hint_y: None
+                    height: "44dp"
+
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "56dp"
+                    padding: ["16dp", "4dp"]
+
+                    MDButton:
+                        style: "outlined"
+                        size_hint_x: 1
+                        on_release: root.export_csv()
+
+                        MDButtonText:
+                            text: "Export Meal History (CSV)"
+
+                MDDivider:
+
+                # ── About ──────────────────────────────────────────────
+                MDListItem:
+                    MDListItemHeadlineText:
+                        text: "Version"
+
+                    MDListItemSupportingText:
+                        text: app.version if hasattr(app, 'version') else "1.0.0"

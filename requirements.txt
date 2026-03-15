@@ -1,0 +1,6 @@
+kivy==2.3.0
+kivymd==2.0.1
+supabase>=2.3.0
+openfoodfacts>=1.1.0
+pyzbar>=0.1.9
+Pillow>=10.0.0

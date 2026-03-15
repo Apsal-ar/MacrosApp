@@ -1,0 +1,98 @@
+#:import MacroProgressBar widgets.macro_progress_bar.MacroProgressBar
+
+<TrackerScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTopAppBar:
+            title: "Daily Tracker"
+            type: "small"
+
+        # ── Date navigation ────────────────────────────────────────────
+        MDBoxLayout:
+            size_hint_y: None
+            height: "52dp"
+            padding: ["8dp", "4dp", "8dp", "4dp"]
+            spacing: "4dp"
+
+            MDIconButton:
+                icon: "chevron-left"
+                on_release: root.go_previous_day()
+
+            MDLabel:
+                id: date_label
+                text: "Today"
+                halign: "center"
+                font_style: "Title"
+                role: "medium"
+                size_hint_x: 1
+
+            MDIconButton:
+                icon: "chevron-right"
+                on_release: root.go_next_day()
+
+        MDDivider:
+
+        MDScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["12dp", "8dp", "12dp", "16dp"]
+                spacing: "12dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                # ── Meal cards ─────────────────────────────────────────
+                MDBoxLayout:
+                    id: meals_container
+                    orientation: "vertical"
+                    spacing: "12dp"
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                # ── Daily totals ───────────────────────────────────────
+                MDCard:
+                    padding: ["12dp", "12dp", "12dp", "12dp"]
+                    radius: [dp(12)]
+                    elevation: 2
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "8dp"
+                        size_hint_y: None
+                        height: self.minimum_height
+
+                        MDLabel:
+                            text: "Daily Totals"
+                            font_style: "Title"
+                            role: "small"
+                            size_hint_y: None
+                            height: "28dp"
+
+                        MDLabel:
+                            id: total_calories
+                            text: "0 / 0 kcal"
+                            font_style: "Headline"
+                            role: "small"
+                            halign: "center"
+                            size_hint_y: None
+                            height: "36dp"
+
+                        MacroProgressBar:
+                            id: progress_protein
+                            label: "Protein"
+                            consumed: 0
+                            target: 150
+
+                        MacroProgressBar:
+                            id: progress_carbs
+                            label: "Carbs"
+                            consumed: 0
+                            target: 200
+
+                        MacroProgressBar:
+                            id: progress_fat
+                            label: "Fat"
+                            consumed: 0
+                            target: 67
