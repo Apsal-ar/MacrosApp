@@ -133,9 +133,10 @@ class UnitConverter:
         Returns:
             Formatted string, e.g. '75.0 kg' or '165.3 lbs'.
         """
+        # \u00a0 = non-breaking space — prevents "55.0" and "kg" wrapping to separate lines
         if unit_system == "imperial":
-            return f"{cls.kg_to_lbs(kg)} lbs"
-        return f"{kg} kg"
+            return f"{cls.kg_to_lbs(kg):.1f}\u00a0lbs"
+        return f"{kg:.1f}\u00a0kg"
 
     @classmethod
     def format_height(cls, cm: float, unit_system: str) -> str:
@@ -151,4 +152,4 @@ class UnitConverter:
         if unit_system == "imperial":
             feet, inches = cls.cm_to_feet_inches(cm)
             return f"{feet}'{inches}\""
-        return f"{cm} cm"
+        return f"{cm:.1f}\u00a0cm"

@@ -46,23 +46,29 @@ class BaseScreen(MDScreen):
         if self._loading_dialog is not None:
             return
         try:
-            from kivymd.uix.dialog import MDDialog          # pylint: disable=import-outside-toplevel
-            from kivymd.uix.progressindicator import (      # pylint: disable=import-outside-toplevel
+            from kivy.uix.widget import Widget                              # pylint: disable=import-outside-toplevel
+            from kivymd.uix.dialog import (                                 # pylint: disable=import-outside-toplevel
+                MDDialog,
+                MDDialogContentContainer,
+                MDDialogSupportingText,
+            )
+            from kivymd.uix.progressindicator import (                     # pylint: disable=import-outside-toplevel
                 MDCircularProgressIndicator,
             )
-            from kivy.uix.boxlayout import BoxLayout        # pylint: disable=import-outside-toplevel
-            from kivymd.uix.label import MDLabel            # pylint: disable=import-outside-toplevel
 
-            content = BoxLayout(
-                orientation="vertical",
-                spacing="16dp",
-                size_hint_y=None,
-                height="100dp",
+            spinner = MDCircularProgressIndicator(
+                size_hint=(None, None),
+                size=("48dp", "48dp"),
+                pos_hint={"center_x": 0.5},
             )
-            content.add_widget(MDCircularProgressIndicator(size_hint=(None, None), size=("48dp", "48dp"), pos_hint={"center_x": 0.5}))
-            content.add_widget(MDLabel(text=message, halign="center"))
-
-            self._loading_dialog = MDDialog(type="custom", content_cls=content)
+            self._loading_dialog = MDDialog(
+                MDDialogSupportingText(text=message, halign="center"),
+                MDDialogContentContainer(
+                    spinner,
+                    orientation="vertical",
+                    padding=["0dp", "8dp", "0dp", "0dp"],
+                ),
+            )
             self._loading_dialog.open()
         except Exception as exc:  # pylint: disable=broad-except
             logger.debug("show_loading fallback: %s", exc)

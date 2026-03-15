@@ -2,9 +2,20 @@
     MDBoxLayout:
         orientation: "vertical"
 
-        MDTopAppBar:
-            title: "My Profile"
-            type: "small"
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            padding: ["16dp", "0dp", "16dp", "0dp"]
+
+            MDLabel:
+                text: "My Profile"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "center"
+                valign: "center"
 
         MDScrollView:
             MDBoxLayout:
@@ -14,14 +25,14 @@
                 size_hint_y: None
                 height: self.minimum_height
 
-                # ── Row 1: personal stats ─────────────────────────────
+                # ── Personal stats card ────────────────────────────────
                 MDCard:
                     size_hint_y: None
                     height: "96dp"
                     padding: ["16dp", "12dp", "16dp", "12dp"]
                     radius: [dp(12)]
                     elevation: 2
-                    on_release: root.open_personal_dialog()
+                    on_release: root.open_edit_sheet()
 
                     MDBoxLayout:
                         spacing: "4dp"
@@ -122,14 +133,14 @@
                                 size_hint_y: None
                                 height: "20dp"
 
-                # ── Row 2: activity level ────────────────────────────
+                # ── Activity level card ────────────────────────────────
                 MDCard:
                     size_hint_y: None
                     height: "72dp"
                     padding: ["16dp", "12dp", "16dp", "12dp"]
                     radius: [dp(12)]
                     elevation: 2
-                    on_release: root.open_activity_dialog()
+                    on_release: root.open_edit_sheet()
 
                     MDBoxLayout:
                         spacing: "12dp"
@@ -164,14 +175,14 @@
                             theme_text_color: "Secondary"
                             pos_hint: {"center_y": 0.5}
 
-                # ── Row 3: goal ───────────────────────────────────────
+                # ── Goal card ──────────────────────────────────────────
                 MDCard:
                     size_hint_y: None
                     height: "72dp"
                     padding: ["16dp", "12dp", "16dp", "12dp"]
                     radius: [dp(12)]
                     elevation: 2
-                    on_release: root.open_goal_dialog()
+                    on_release: root.open_edit_sheet()
 
                     MDBoxLayout:
                         spacing: "12dp"

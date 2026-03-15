@@ -242,9 +242,11 @@ class MacroTrackerApp(MDApp):
             except Exception as exc:  # pylint: disable=broad-except
                 logger.error("Auto-login failed: %s — falling back to offline demo", exc)
 
-        # No password configured or Supabase unavailable → offline demo
+        # No password configured or Supabase unavailable → offline demo.
+        # Use uuid5 (deterministic, derived from the email) so the same
+        # profile row is found in SQLite on every subsequent restart.
         import uuid  # pylint: disable=import-outside-toplevel
-        demo_id = "demo-" + str(uuid.uuid4())[:8]
+        demo_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"offline:{config.DEV_AUTO_LOGIN_EMAIL}"))
         logger.info("Auto-login: offline demo mode, id=%s", demo_id)
         self._on_auth_success(demo_id)
 
@@ -352,14 +354,18 @@ class MacroTrackerApp(MDApp):
             pass
 
     def _enter_offline_demo(self, login_screen: LoginScreen) -> None:
-        """Enter offline demo mode with a synthetic user ID.
+        """Enter offline demo mode with a deterministic user ID derived from email.
+
+        Using uuid5 ensures the same profile row is found in SQLite across
+        restarts, so data entered offline is never silently lost.
 
         Args:
-            login_screen: The LoginScreen to navigate away from.
+            login_screen: The LoginScreen (provides the email and is navigated away from).
         """
         import uuid  # pylint: disable=import-outside-toplevel
-        demo_id = "demo-" + str(uuid.uuid4())[:8]
-        logger.info("Entering offline demo mode with id=%s", demo_id)
+        email = login_screen.ids.email_field.text.strip() or "anonymous"
+        demo_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"offline:{email}"))
+        logger.info("Entering offline demo mode, id=%s", demo_id)
         self._on_auth_success(demo_id, login_screen)
 
     def _ensure_profile_exists(self, user_id: str) -> None:
