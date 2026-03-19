@@ -175,6 +175,144 @@
                             theme_text_color: "Secondary"
                             pos_hint: {"center_y": 0.5}
 
+                # ── Body metrics section ───────────────────────────────
+                MDCard:
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    radius: [dp(12)]
+                    elevation: 2
+                    padding: "0dp"
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "72dp"
+                        padding: ["16dp", "12dp", "16dp", "12dp"]
+                        spacing: "12dp"
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "2dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                text: "Body Mass Index"
+                                font_style: "Body"
+                                role: "small"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                            MDLabel:
+                                id: bmi_value
+                                text: "—"
+                                font_style: "Title"
+                                role: "small"
+                                size_hint_y: None
+                                height: "28dp"
+
+                    MDDivider:
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "72dp"
+                        padding: ["16dp", "12dp", "16dp", "12dp"]
+                        spacing: "12dp"
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "2dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                text: "Basal Metabolic Rate"
+                                font_style: "Body"
+                                role: "small"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                            MDLabel:
+                                id: bmr_value
+                                text: "—"
+                                font_style: "Title"
+                                role: "small"
+                                size_hint_y: None
+                                height: "28dp"
+
+                    MDDivider:
+
+                    MDCard:
+                        size_hint_y: None
+                        height: "72dp"
+                        padding: "0dp"
+                        elevation: 0
+                        radius: [0]
+                        on_release: root.open_body_fat_dialog()
+
+                        MDBoxLayout:
+                            padding: ["16dp", "12dp", "16dp", "12dp"]
+                            spacing: "12dp"
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "2dp"
+                                size_hint_x: 1
+
+                                MDLabel:
+                                    text: "Body Fat"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_text_color: "Secondary"
+                                    size_hint_y: None
+                                    height: "20dp"
+
+                                MDLabel:
+                                    id: body_fat_value
+                                    text: "Tap to calculate"
+                                    font_style: "Title"
+                                    role: "small"
+                                    size_hint_y: None
+                                    height: "28dp"
+
+                            MDLabel:
+                                text: "›"
+                                font_size: "22sp"
+                                size_hint_x: None
+                                width: "20dp"
+                                halign: "right"
+                                theme_text_color: "Secondary"
+                                pos_hint: {"center_y": 0.5}
+
+                    MDDivider:
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "72dp"
+                        padding: ["16dp", "12dp", "16dp", "12dp"]
+                        spacing: "12dp"
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: "2dp"
+                            size_hint_x: 1
+
+                            MDLabel:
+                                text: "Water Requirement"
+                                font_style: "Body"
+                                role: "small"
+                                theme_text_color: "Secondary"
+                                size_hint_y: None
+                                height: "20dp"
+
+                            MDLabel:
+                                id: water_value
+                                text: "—"
+                                font_style: "Title"
+                                role: "small"
+                                size_hint_y: None
+                                height: "28dp"
+
                 # ── Goal card ──────────────────────────────────────────
                 MDCard:
                     size_hint_y: None

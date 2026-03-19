@@ -15,6 +15,17 @@ from utils.constants import ACTIVITY_MULTIPLIERS, GOAL_MODIFIERS
 
 
 class MacroCalculator:
+    _ACTIVITY_ALIASES = {
+        "sedentary": "low",
+        "light": "low",
+        "active": "high",
+        "very_active": "very_high",
+    }
+    _GOAL_ALIASES = {
+        "lose": "lose_fast",
+        "gain": "gain_slow",
+    }
+
     """TDEE and macro calculation service.
 
     All methods are static and stateless; instantiate only when dependency
@@ -53,38 +64,45 @@ class MacroCalculator:
     # TDEE
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def calculate_tdee(bmr: float, activity_level: str) -> float:
+    @classmethod
+    def calculate_tdee(cls, bmr: float, activity_level: str) -> float:
         """Multiply BMR by the Physical Activity Level (PAL) multiplier.
 
         Args:
             bmr: Basal Metabolic Rate in kcal/day.
-            activity_level: One of 'sedentary', 'light', 'moderate', 'active',
-                'very_active'. Unknown values fall back to 'sedentary'.
+            activity_level: One of 'low', 'moderate', 'high', 'very_high',
+                'hyperactive'. Legacy keys ('sedentary', 'light', 'active',
+                'very_active') are also accepted. Unknown values fall back to
+                'moderate'.
 
         Returns:
             TDEE in kcal/day as a float.
         """
-        multiplier = ACTIVITY_MULTIPLIERS.get(activity_level, ACTIVITY_MULTIPLIERS["sedentary"])
+        normalized = cls._ACTIVITY_ALIASES.get(activity_level, activity_level)
+        multiplier = ACTIVITY_MULTIPLIERS.get(normalized)
+        if multiplier is None:
+            multiplier = ACTIVITY_MULTIPLIERS.get("moderate", 1.55)
         return round(bmr * multiplier, 1)
 
     # ------------------------------------------------------------------
     # Goal modifier
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def apply_goal_modifier(tdee: float, goal: str) -> float:
+    @classmethod
+    def apply_goal_modifier(cls, tdee: float, goal: str) -> float:
         """Adjust TDEE by a fixed calorie offset based on the user's goal.
 
         Args:
             tdee: Total Daily Energy Expenditure in kcal/day.
-            goal: One of 'lose' (−500 kcal), 'maintain' (±0), 'gain' (+300 kcal).
+            goal: One of 'lose_fast', 'lose_slow', 'maintain', 'gain_slow',
+                or 'gain_fast'. Legacy keys ('lose', 'gain') are also accepted.
                 Unknown values default to 'maintain'.
 
         Returns:
             Target calorie intake per day as a float.
         """
-        modifier = GOAL_MODIFIERS.get(goal, GOAL_MODIFIERS["maintain"])
+        normalized = cls._GOAL_ALIASES.get(goal, goal)
+        modifier = GOAL_MODIFIERS.get(normalized, GOAL_MODIFIERS["maintain"])
         return max(1200.0, round(tdee + modifier, 1))  # floor at 1200 kcal for safety
 
     # ------------------------------------------------------------------

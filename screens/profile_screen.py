@@ -9,14 +9,21 @@ UI components:
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Any, Callable, Dict, Optional
 
+from kivy.animation import Animation
 from kivy.clock import Clock
+from kivy.graphics import Color, RoundedRectangle
 from kivy.lang import Builder
 from kivy.metrics import dp
-from kivy.properties import StringProperty
+from kivy.properties import BooleanProperty, StringProperty
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.label import Label
 from kivy.uix.modalview import ModalView
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
 from kivymd.app import MDApp
 from kivymd.uix.appbar import MDTopAppBar  # noqa: F401 — registers KV Factory
@@ -301,10 +308,432 @@ _KV = """
 
                 MDButtonText:
                     text: "Save"
+
+# ── Full-screen body-fat sheet ────────────────────────────────────────────
+<BodyFatSheet>:
+    background: " "
+    background_color: 0, 0, 0, 0
+    auto_dismiss: False
+
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: app.theme_cls.backgroundColor
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            spacing: "4dp"
+            padding: ["4dp", "0dp", "16dp", "0dp"]
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.dismiss()
+
+            MDLabel:
+                text: "Body Fat"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "left"
+                valign: "center"
+
+        ScrollView:
+            size_hint_y: 1
+
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["16dp", "16dp", "16dp", "0dp"]
+                size_hint_y: None
+                height: self.minimum_height
+
+                MDCard:
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    radius: [dp(12)]
+                    padding: "0dp"
+                    elevation: 0
+
+                    MDListItem:
+                        on_release: root.edit_field("waist")
+                        theme_bg_color: "Custom"
+                        md_bg_color: 0, 0, 0, 0
+                        MDListItemHeadlineText:
+                            text: "Waist"
+                        MDListItemTrailingSupportingText:
+                            text: root.waist_text
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.primaryColor
+                            halign: "right"
+                            size_hint_x: None
+                            width: "84dp"
+                            text_size: self.size
+                            shorten: True
+
+                    MDDivider:
+
+                    MDListItem:
+                        on_release: root.edit_field("neck")
+                        theme_bg_color: "Custom"
+                        md_bg_color: 0, 0, 0, 0
+                        MDListItemHeadlineText:
+                            text: "Neck"
+                        MDListItemTrailingSupportingText:
+                            text: root.neck_text
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.primaryColor
+                            halign: "right"
+                            size_hint_x: None
+                            width: "84dp"
+                            text_size: self.size
+                            shorten: True
+
+                    MDDivider:
+
+                    MDListItem:
+                        on_release: root.edit_field("hips")
+                        theme_bg_color: "Custom"
+                        md_bg_color: 0, 0, 0, 0
+                        MDListItemHeadlineText:
+                            text: root.hips_label
+                        MDListItemTrailingSupportingText:
+                            text: root.hips_text
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.primaryColor
+                            halign: "right"
+                            size_hint_x: None
+                            width: "84dp"
+                            text_size: self.size
+                            shorten: True
+
+                MDLabel:
+                    text: root.help_text
+                    theme_text_color: "Secondary"
+                    font_style: "Body"
+                    role: "small"
+                    size_hint_y: None
+                    height: "36dp"
+                    padding: ["2dp", "8dp", "2dp", "0dp"]
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "88dp"
+            padding: ["16dp", "8dp", "16dp", "24dp"]
+
+            MDButton:
+                style: "filled"
+                size_hint_x: 1
+                on_release: root.calculate_and_save()
+
+                MDButtonText:
+                    text: "Calculate"
+"""
+
+_DRUM_KV = """
+# ── Bottom-anchored drum-roll height picker ───────────────────────────────
+<HeightPickerSheet>:
+    background: " "
+    background_color: 0, 0, 0, 0.55
+    auto_dismiss: True
+
+    FloatLayout:
+        size_hint: 1, 1
+
+        MDCard:
+            orientation: "vertical"
+            size_hint_x: 1
+            size_hint_y: None
+            height: "356dp"
+            pos_hint: {"x": 0, "y": 0}
+            radius: [dp(16), dp(16), 0, 0]
+            padding: "0dp"
+            elevation: 4
+            md_bg_color: app.theme_cls.surfaceContainerHighColor
+
+            # Title
+            MDLabel:
+                text: "Height"
+                size_hint_y: None
+                height: "52dp"
+                halign: "center"
+                valign: "center"
+                font_style: "Title"
+                bold: True
+
+            # Drum roll lives here
+            MDBoxLayout:
+                id: picker_slot
+                size_hint: 1, 1
+                padding: ["0dp", "0dp", "0dp", "0dp"]
+
+            # Cancel / OK row
+            MDBoxLayout:
+                size_hint_y: None
+                height: "68dp"
+                padding: ["24dp", "8dp", "24dp", "16dp"]
+                spacing: "16dp"
+
+                MDButton:
+                    style: "text"
+                    size_hint_x: 1
+                    on_release: root.dismiss()
+                    MDButtonText:
+                        text: "Cancel"
+
+                MDButton:
+                    style: "filled"
+                    size_hint_x: 1
+                    on_release: root._confirm()
+                    MDButtonText:
+                        text: "Ok"
 """
 
 Builder.load_string(_KV)
+Builder.load_string(_DRUM_KV)
 Builder.load_file("assets/kv/profile.kv")
+
+
+def _show_range_popup(title: str, message: str) -> None:
+    """Show a blocking popup that explains valid input range."""
+    dlg_ref: list = []
+    dlg = MDDialog(
+        MDDialogHeadlineText(text=title),
+        MDDialogContentContainer(
+            MDLabel(text=message, halign="center"),
+            orientation="vertical",
+            padding=[0, dp(6), 0, dp(6)],
+        ),
+        MDDialogButtonContainer(
+            Widget(),
+            MDButton(
+                MDButtonText(text="Ok"),
+                style="filled",
+                on_release=lambda x: dlg_ref[0].dismiss() if dlg_ref else None,
+            ),
+            spacing="8dp",
+        ),
+    )
+    dlg_ref.append(dlg)
+    dlg.open()
+
+
+# ---------------------------------------------------------------------------
+# DrumRollPicker — slot-machine style integer scroll picker
+# ---------------------------------------------------------------------------
+
+class DrumRollPicker(FloatLayout):
+    """A drum-roll (slot-machine) integer picker.
+
+    Shows VISIBLE rows at once.  The centred row is the selected value,
+    highlighted with a rounded-rectangle strip.  Scrolling snaps to the
+    nearest integer on release.  Items fade and shrink with distance from
+    the selection, mimicking a physical drum wheel.
+    """
+
+    ITEM_H: float = dp(44)
+    VISIBLE: int = 7       # must be odd
+
+    def __init__(
+        self,
+        min_val: int,
+        max_val: int,
+        initial: int,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._min = min_val
+        self._max = max_val
+        self._selected = max(min_val, min(max_val, initial))
+        self._labels: Dict[int, Label] = {}
+        self._scroll: Optional[ScrollView] = None
+        self.size_hint = (1, None)
+        self.height = self.VISIBLE * self.ITEM_H
+        self._build()
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
+    def _build(self) -> None:
+        half = self.VISIBLE // 2
+        item_h = self.ITEM_H
+        n = self._max - self._min + 1
+        total_h = (n + 2 * half) * item_h
+
+        scroll = ScrollView(
+            size_hint=(1, 1),
+            bar_width=0,
+            do_scroll_x=False,
+            scroll_type=["bars", "content"],
+        )
+
+        container = BoxLayout(
+            orientation="vertical",
+            size_hint=(1, None),
+            height=total_h,
+        )
+
+        for _ in range(half):
+            container.add_widget(Widget(size_hint_y=None, height=item_h))
+
+        for v in range(self._min, self._max + 1):
+            lbl = Label(
+                text=str(v),
+                size_hint_y=None,
+                height=item_h,
+                halign="center",
+                valign="center",
+            )
+            lbl.bind(size=lbl.setter("text_size"))
+            self._labels[v] = lbl
+            container.add_widget(lbl)
+
+        for _ in range(half):
+            container.add_widget(Widget(size_hint_y=None, height=item_h))
+
+        scroll.add_widget(container)
+        self._scroll = scroll
+        scroll.bind(scroll_y=self._on_scroll_changed)
+        scroll.bind(on_scroll_stop=self._on_scroll_stopped)
+
+        # Highlight strip — fixed overlay centred in the FloatLayout
+        hl = Widget(
+            size_hint=(1, None),
+            height=item_h,
+            pos_hint={"x": 0, "center_y": 0.5},
+        )
+        try:
+            app = MDApp.get_running_app()
+            r, g, b, _ = app.theme_cls.primaryColor
+        except Exception:  # noqa: BLE001
+            r, g, b = 0.15, 0.5, 0.45
+        with hl.canvas.before:
+            Color(r, g, b, 0.30)
+            rr = RoundedRectangle(pos=hl.pos, size=hl.size, radius=[dp(8)])
+        hl.bind(
+            pos=lambda w, p: setattr(rr, "pos", p),
+            size=lambda w, s: setattr(rr, "size", s),
+        )
+
+        self.add_widget(scroll)
+        self.add_widget(hl)
+
+        self._update_labels(self._selected)
+        Clock.schedule_once(
+            lambda dt: self._set_scroll(self._selected, animate=False), 0.05
+        )
+
+    # ------------------------------------------------------------------
+    # Scroll helpers
+    # ------------------------------------------------------------------
+
+    def _scroll_y_for(self, value: int) -> float:
+        n = self._max - self._min
+        return (1.0 - (value - self._min) / n) if n > 0 else 1.0
+
+    def _set_scroll(self, value: int, animate: bool = True) -> None:
+        if self._scroll is None:
+            return
+        target = self._scroll_y_for(value)
+        if animate:
+            Animation(scroll_y=target, duration=0.12, t="out_quad").start(
+                self._scroll
+            )
+        else:
+            self._scroll.scroll_y = target
+        self._selected = value
+        self._update_labels(value)
+
+    def _on_scroll_changed(self, instance: Any, scroll_y: float) -> None:
+        n = self._max - self._min
+        val = round(self._min + (1.0 - scroll_y) * n)
+        val = max(self._min, min(self._max, val))
+        if val != self._selected:
+            old = self._selected
+            self._selected = val
+            span = self.VISIBLE + 1
+            affected = (
+                set(range(old - span, old + span + 1))
+                | set(range(val - span, val + span + 1))
+            )
+            for v in affected:
+                if self._min <= v <= self._max and v in self._labels:
+                    self._style_label(self._labels[v], abs(v - val))
+
+    def _on_scroll_stopped(self, *args: Any) -> None:
+        self._set_scroll(self._selected)
+
+    # ------------------------------------------------------------------
+    # Label styling (depth illusion)
+    # ------------------------------------------------------------------
+
+    def _update_labels(self, selected: int) -> None:
+        for v, lbl in self._labels.items():
+            self._style_label(lbl, abs(v - selected))
+
+    @staticmethod
+    def _style_label(lbl: Label, dist: int) -> None:
+        if dist == 0:
+            lbl.font_size = "24sp"
+            lbl.bold = True
+            lbl.color = (1.0, 1.0, 1.0, 1.0)
+        elif dist == 1:
+            lbl.font_size = "19sp"
+            lbl.bold = False
+            lbl.color = (0.85, 0.85, 0.85, 0.75)
+        elif dist == 2:
+            lbl.font_size = "15sp"
+            lbl.bold = False
+            lbl.color = (0.70, 0.70, 0.70, 0.50)
+        else:
+            lbl.font_size = "12sp"
+            lbl.bold = False
+            lbl.color = (0.55, 0.55, 0.55, 0.25)
+
+    # ------------------------------------------------------------------
+    # Public
+    # ------------------------------------------------------------------
+
+    @property
+    def value(self) -> int:
+        return self._selected
+
+    def jump_to(self, value: int) -> None:
+        """Jump to *value* instantly (no animation).  Safe to call at any time."""
+        value = max(self._min, min(self._max, value))
+        self._set_scroll(value, animate=False)
+
+
+# ---------------------------------------------------------------------------
+# HeightPickerSheet — bottom sheet wrapping DrumRollPicker
+# ---------------------------------------------------------------------------
+
+class HeightPickerSheet(ModalView):
+    """Bottom sheet containing a drum-roll height picker (80–250 cm)."""
+
+    def __init__(
+        self, initial: int, callback: Callable[[int], None], **kwargs: Any
+    ) -> None:
+        super().__init__(size_hint=(1, 1), **kwargs)
+        self._callback = callback
+        self._drum = DrumRollPicker(
+            min_val=80, max_val=250, initial=max(80, min(250, initial))
+        )
+        self.ids.picker_slot.add_widget(self._drum)
+
+    def update_value(self, value: int) -> None:
+        """Reposition the drum roll to *value* before reopening."""
+        self._drum.jump_to(max(80, min(250, value)))
+
+    def _confirm(self) -> None:
+        if self._callback:
+            self._callback(self._drum.value)
+        self.dismiss()
 
 
 # ---------------------------------------------------------------------------
@@ -472,6 +901,214 @@ class GenderSheet(ModalView):
 
 
 # ---------------------------------------------------------------------------
+# BodyFatSheet — full-screen circumference input sheet
+# ---------------------------------------------------------------------------
+
+class BodyFatSheet(ModalView):
+    """Full-screen sheet for body-fat circumference inputs."""
+
+    waist_text = StringProperty("—")
+    neck_text = StringProperty("—")
+    hips_text = StringProperty("—")
+    hips_label = StringProperty("Hips")
+    help_text = StringProperty("")
+    female_mode = BooleanProperty(False)
+
+    def __init__(self, profile_screen: "ProfileScreen", **kwargs: Any) -> None:
+        super().__init__(size_hint=(1, 1), **kwargs)
+        self._ps = profile_screen
+        self._waist_cm: Optional[float] = None
+        self._neck_cm: Optional[float] = None
+        self._hips_cm: Optional[float] = None
+
+    def populate(self) -> None:
+        """Load current saved values from the profile screen."""
+        self._waist_cm = self._ps._waist_cm
+        self._neck_cm = self._ps._neck_cm
+        self._hips_cm = self._ps._hips_cm
+        self.female_mode = (self._ps._sex == "female")
+        self.hips_label = "Hips" if self.female_mode else "Hips (optional)"
+        self.help_text = (
+            "Women: waist, hips and neck are required."
+            if self.female_mode else
+            "Men: waist and neck are required."
+        )
+        self._refresh_display()
+
+    def _refresh_display(self) -> None:
+        self.waist_text = f"{self._waist_cm:.0f} cm" if self._waist_cm else "—"
+        self.neck_text = f"{self._neck_cm:.0f} cm" if self._neck_cm else "—"
+        if self.female_mode:
+            self.hips_text = f"{self._hips_cm:.0f} cm" if self._hips_cm else "—"
+        else:
+            self.hips_text = f"{self._hips_cm:.0f} cm" if self._hips_cm else "Optional"
+
+    def edit_field(self, name: str) -> None:
+        if name == "waist":
+            self._open_measure_dialog(
+                title="Waist",
+                hint="cm (40 - 220)",
+                current=self._waist_cm,
+                setter=self._set_waist,
+                min_value=40.0,
+                max_value=220.0,
+            )
+            return
+        if name == "neck":
+            self._open_measure_dialog(
+                title="Neck",
+                hint="cm (20 - 70)",
+                current=self._neck_cm,
+                setter=self._set_neck,
+                min_value=20.0,
+                max_value=70.0,
+            )
+            return
+        if name == "hips":
+            if not self.female_mode:
+                self._ps.show_error("Hips measurement is only required for women")
+                return
+            self._open_measure_dialog(
+                title="Hips",
+                hint="cm (50 - 250)",
+                current=self._hips_cm,
+                setter=self._set_hips,
+                min_value=50.0,
+                max_value=250.0,
+            )
+
+    def _open_measure_dialog(
+        self,
+        title: str,
+        hint: str,
+        current: Optional[float],
+        setter: Callable[[float], None],
+        min_value: float,
+        max_value: float,
+    ) -> None:
+        field = MDTextField(
+            hint_text=hint,
+            input_filter="float",
+            text=str(round(current, 1)) if current else "",
+        )
+        dlg_ref: list = []
+
+        def _apply(x: Any) -> None:
+            try:
+                value = float(field.text)
+            except ValueError:
+                field.error = True
+                field.helper_text = "Enter a valid number"
+                field.helper_text_mode = "on_error"
+                _show_range_popup(
+                    title,
+                    f"Please enter a valid number between {min_value:.0f} and {max_value:.0f} cm.",
+                )
+                return
+
+            if value < min_value or value > max_value:
+                field.error = True
+                field.helper_text = f"Must be {min_value:.0f}–{max_value:.0f} cm"
+                field.helper_text_mode = "on_error"
+                _show_range_popup(
+                    title,
+                    f"Please enter a value between {min_value:.0f} and {max_value:.0f} cm.",
+                )
+                return
+
+            field.error = False
+            setter(value)
+            self._refresh_display()
+            if dlg_ref:
+                dlg_ref[0].dismiss()
+
+        dlg = MDDialog(
+            MDDialogHeadlineText(text=title),
+            MDDialogContentContainer(
+                field,
+                orientation="vertical",
+                padding=[0, dp(4), 0, dp(4)],
+            ),
+            MDDialogButtonContainer(
+                Widget(),
+                MDButton(
+                    MDButtonText(text="Cancel"),
+                    style="text",
+                    on_release=lambda x: dlg_ref[0].dismiss() if dlg_ref else None,
+                ),
+                MDButton(MDButtonText(text="Set"), style="filled", on_release=_apply),
+                spacing="8dp",
+            ),
+        )
+        dlg_ref.append(dlg)
+        dlg.open()
+
+    def _set_waist(self, value: float) -> None:
+        self._waist_cm = value
+
+    def _set_neck(self, value: float) -> None:
+        self._neck_cm = value
+
+    def _set_hips(self, value: float) -> None:
+        self._hips_cm = value
+
+    def _validate_measurements(self) -> bool:
+        if self._waist_cm is None or self._neck_cm is None:
+            self._ps.show_error("Waist and neck are required")
+            return False
+        if not 40 <= self._waist_cm <= 220:
+            self._ps.show_error("Waist must be between 40 and 220 cm")
+            return False
+        if not 20 <= self._neck_cm <= 70:
+            self._ps.show_error("Neck must be between 20 and 70 cm")
+            return False
+
+        if self.female_mode:
+            if self._hips_cm is None:
+                self._ps.show_error("Hips is required for women")
+                return False
+            if not 50 <= self._hips_cm <= 250:
+                self._ps.show_error("Hips must be between 50 and 250 cm")
+                return False
+            if (self._waist_cm + self._hips_cm - self._neck_cm) <= 0:
+                self._ps.show_error("Check measurements: waist + hips must exceed neck")
+                return False
+        else:
+            if (self._waist_cm - self._neck_cm) <= 0:
+                self._ps.show_error("Check measurements: waist must exceed neck")
+                return False
+        return True
+
+    def calculate_and_save(self) -> None:
+        if not self._ps._height_cm:
+            self._ps.show_error("Set height first")
+            return
+        if not self._ps._sex:
+            self._ps.show_error("Set gender first")
+            return
+        if not self._validate_measurements():
+            return
+
+        body_fat = self._ps._calculate_body_fat_pct(
+            height_cm=self._ps._height_cm,
+            sex=self._ps._sex,
+            waist_cm=self._waist_cm or 0.0,
+            neck_cm=self._neck_cm or 0.0,
+            hips_cm=self._hips_cm,
+        )
+        if body_fat is None:
+            self._ps.show_error("Could not calculate body fat with these values")
+            return
+
+        self._ps._waist_cm = self._waist_cm
+        self._ps._neck_cm = self._neck_cm
+        self._ps._hips_cm = self._hips_cm
+        self._ps._body_fat_pct = body_fat
+        self._ps._refresh_display(self._ps.get_unit_system())
+        self.dismiss()
+
+
+# ---------------------------------------------------------------------------
 # EditProfileSheet — unified full-screen edit form
 # ---------------------------------------------------------------------------
 
@@ -502,8 +1139,8 @@ class EditProfileSheet(ModalView):
         self._goal: str = "maintain"
         self._unit: str = "metric"
 
-        # Cached pickers (built lazily; height has 171 items so worth caching)
-        self._height_picker: Optional[PickerModal] = None
+        # Cached pickers
+        self._height_sheet: Optional[HeightPickerSheet] = None
         self._gender_sheet: Optional[GenderSheet] = None
 
     # ------------------------------------------------------------------
@@ -563,31 +1200,26 @@ class EditProfileSheet(ModalView):
             )
 
     # ------------------------------------------------------------------
-    # Height picker (cached — 171 items)
+    # Height picker — drum-roll bottom sheet
     # ------------------------------------------------------------------
 
     def _open_height_picker(self) -> None:
         current_cm = int(self._height_cm) if self._height_cm else 163
         current_cm = max(80, min(250, current_cm))
 
-        if self._height_picker is None:
-            self._height_picker = PickerModal()
-            options = {str(i): f"{i} cm" for i in range(80, 251)}
-            self._height_picker.build(
-                title="Height",
-                options=options,
-                descriptions={},
-                callback=self._set_height_from_key,
+        if self._height_sheet is None:
+            self._height_sheet = HeightPickerSheet(
+                initial=current_cm,
+                callback=self._set_height_from_int,
             )
+        else:
+            self._height_sheet.update_value(current_cm)
 
-        self._height_picker.open_with_key(str(current_cm), needs_scroll=True)
+        self._height_sheet.open()
 
-    def _set_height_from_key(self, key: str) -> None:
-        try:
-            self._height_cm = float(int(key))
-            self._refresh_display()
-        except (ValueError, TypeError):
-            pass
+    def _set_height_from_int(self, value: int) -> None:
+        self._height_cm = float(value)
+        self._refresh_display()
 
     # ------------------------------------------------------------------
     # Weight dialog (text input, 25–500 kg)
@@ -618,6 +1250,10 @@ class EditProfileSheet(ModalView):
                     field.error = True
                     field.helper_text = "Must be 25–500 kg"
                     field.helper_text_mode = "on_error"
+                    _show_range_popup(
+                        "Weight",
+                        "Please enter a value between 25 and 500 kg.",
+                    )
                     return
                 self._weight_kg = kg
                 self._refresh_display()
@@ -625,6 +1261,12 @@ class EditProfileSheet(ModalView):
                     dlg_ref[0].dismiss()
             except ValueError:
                 field.error = True
+                field.helper_text = "Enter a valid number"
+                field.helper_text_mode = "on_error"
+                _show_range_popup(
+                    "Weight",
+                    "Please enter a valid number between 25 and 500 kg.",
+                )
 
         dlg = MDDialog(
             MDDialogHeadlineText(text="Weight"),
@@ -679,6 +1321,10 @@ class EditProfileSheet(ModalView):
                     field.error = True
                     field.helper_text = "Must be 1–120"
                     field.helper_text_mode = "on_error"
+                    _show_range_popup(
+                        "Age",
+                        "Please enter an age between 1 and 120.",
+                    )
                     return
                 self._age = v
                 self._refresh_display()
@@ -686,6 +1332,12 @@ class EditProfileSheet(ModalView):
                     dlg_ref[0].dismiss()
             except ValueError:
                 field.error = True
+                field.helper_text = "Enter a valid integer"
+                field.helper_text_mode = "on_error"
+                _show_range_popup(
+                    "Age",
+                    "Please enter an age between 1 and 120.",
+                )
 
         dlg = MDDialog(
             MDDialogHeadlineText(text="Age"),
@@ -777,8 +1429,13 @@ class ProfileScreen(BaseScreen):
     _sex: str = "male"
     _activity: str = "moderate"
     _goal: str = "maintain"
+    _waist_cm: Optional[float] = None
+    _neck_cm: Optional[float] = None
+    _hips_cm: Optional[float] = None
+    _body_fat_pct: Optional[float] = None
 
     _edit_sheet: Optional[EditProfileSheet] = None
+    _body_fat_sheet: Optional[BodyFatSheet] = None
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -834,6 +1491,35 @@ class ProfileScreen(BaseScreen):
         ids.activity_value.text = ACTIVITY_LABELS.get(self._activity, "—")
         ids.goal_value.text = GOAL_LABELS.get(self._goal, "—")
 
+        if self._height_cm and self._weight_kg and self._height_cm > 0:
+            height_m = self._height_cm / 100.0
+            bmi = self._weight_kg / (height_m * height_m)
+            ids.bmi_value.text = f"{bmi:.2f}"
+        else:
+            ids.bmi_value.text = "—"
+
+        if self._height_cm and self._weight_kg and self._age and self._sex:
+            bmr = MacroCalculator.calculate_bmr(
+                weight_kg=self._weight_kg,
+                height_cm=self._height_cm,
+                age=self._age,
+                sex=self._sex,
+            )
+            ids.bmr_value.text = f"{bmr:.0f} kcal"
+        else:
+            ids.bmr_value.text = "—"
+
+        if self._weight_kg:
+            # Practical baseline hydration target.
+            water_ml = int(round(self._weight_kg * 35.0))
+            ids.water_value.text = f"{water_ml} ml"
+        else:
+            ids.water_value.text = "—"
+
+        ids.body_fat_value.text = (
+            f"{self._body_fat_pct:.1f} %" if self._body_fat_pct is not None else "Tap to calculate"
+        )
+
     # ------------------------------------------------------------------
     # Edit sheet
     # ------------------------------------------------------------------
@@ -844,6 +1530,53 @@ class ProfileScreen(BaseScreen):
             self._edit_sheet = EditProfileSheet(profile_screen=self)
         self._edit_sheet.populate()
         self._edit_sheet.open()
+
+    def open_body_fat_dialog(self) -> None:
+        """Open the full-screen body-fat calculator sheet."""
+        if not self._height_cm or not self._sex:
+            self.show_error("Set height and gender first")
+            return
+
+        if self._body_fat_sheet is None:
+            self._body_fat_sheet = BodyFatSheet(profile_screen=self)
+        self._body_fat_sheet.populate()
+        self._body_fat_sheet.open()
+
+    @staticmethod
+    def _calculate_body_fat_pct(
+        height_cm: float,
+        sex: str,
+        waist_cm: float,
+        neck_cm: float,
+        hips_cm: Optional[float] = None,
+    ) -> Optional[float]:
+        """Return body-fat percentage using the U.S. Navy circumference formula."""
+        if height_cm <= 0 or waist_cm <= 0 or neck_cm <= 0:
+            return None
+
+        try:
+            if sex == "male":
+                diff = waist_cm - neck_cm
+                if diff <= 0:
+                    return None
+                value = (
+                    495.0
+                    / (1.0324 - 0.19077 * math.log10(diff) + 0.15456 * math.log10(height_cm))
+                ) - 450.0
+                return round(max(0.0, value), 1)
+
+            if hips_cm is None or hips_cm <= 0:
+                return None
+            diff = waist_cm + hips_cm - neck_cm
+            if diff <= 0:
+                return None
+            value = (
+                495.0
+                / (1.29579 - 0.35004 * math.log10(diff) + 0.22100 * math.log10(height_cm))
+            ) - 450.0
+            return round(max(0.0, value), 1)
+        except (ValueError, ZeroDivisionError):
+            return None
 
     # ------------------------------------------------------------------
     # Persistence

@@ -1,35 +1,65 @@
-"""Goals screen — macro ratio sliders, diet presets, and pie chart.
-
-Sliders for protein/carbs/fat are coupled: when one changes, the others
-adjust proportionally to maintain a 100% sum. Selecting a preset auto-sets
-all three. The pie chart updates in real time.
-"""
+"""Goals screen — calorie target + donut chart + macro editor page."""
 
 from __future__ import annotations
 
 import time
-from typing import Optional  # noqa: F401
+from typing import Optional
 
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import NumericProperty
-from kivymd.uix.menu import MDDropdownMenu
+from kivy.uix.modalview import ModalView
 
 from screens.base_screen import BaseScreen
 from services.macro_calculator import MacroCalculator
 from services.repository import GoalsRepository, ProfileRepository
 from models.user import Goals
-from utils.constants import DIET_PRESETS, DIET_PRESET_LABELS
 
 Builder.load_file("assets/kv/goals.kv")
 
 
+class EditMacrosSheet(ModalView):
+    """Full-screen editor where users enter macro percentages."""
+
+    def __init__(self, goals_screen: "GoalsScreen", **kwargs: object) -> None:
+        super().__init__(size_hint=(1, 1), **kwargs)
+        self._gs = goals_screen
+
+    def populate(self) -> None:
+        """Prefill inputs with the current percentages."""
+        self.ids.protein_input.text = f"{self._gs.protein_pct:.0f}"
+        self.ids.fat_input.text = f"{self._gs.fat_pct:.0f}"
+        self.ids.carbs_input.text = f"{self._gs.carbs_pct:.0f}"
+
+    def save_changes(self) -> None:
+        """Validate percentages and persist them through the owning screen."""
+        try:
+            protein = float(self.ids.protein_input.text.strip())
+            fat = float(self.ids.fat_input.text.strip())
+            carbs = float(self.ids.carbs_input.text.strip())
+        except ValueError:
+            self._gs.show_error("Please enter valid numbers")
+            return
+
+        if protein < 0 or fat < 0 or carbs < 0:
+            self._gs.show_error("Percentages cannot be negative")
+            return
+
+        total = protein + fat + carbs
+        if abs(total - 100.0) > 0.1:
+            self._gs.show_error("Protein + Fat + Carbs must equal 100%")
+            return
+
+        self._gs.apply_macro_split(protein, carbs, fat)
+        self.dismiss()
+
+
 class GoalsScreen(BaseScreen):
-    """Screen for setting macro split, diet presets, and meals per day.
+    """Screen for calorie target and macro split.
 
     KV file: assets/kv/goals.kv
 
-    The three slider values are Kivy properties so the pie chart widget
+    The three macro values are Kivy properties so the donut chart widget
     can bind to them directly for reactive redraws.
     """
 
@@ -39,55 +69,15 @@ class GoalsScreen(BaseScreen):
     carbs_pct = NumericProperty(40.0)
     fat_pct = NumericProperty(30.0)
 
-    _updating_sliders: bool = False
-    _diet_key: str = "balanced"
-    _diet_menu: Optional[MDDropdownMenu] = None
+    _edit_sheet: Optional[EditMacrosSheet] = None
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def on_kv_post(self, base_widget: object) -> None:
-        """Build the diet preset dropdown after KV widgets are ready."""
-        super().on_kv_post(base_widget)
-        self._build_diet_menu()
-
     def on_enter(self) -> None:
         """Load persisted goals when the screen becomes active."""
         Clock.schedule_once(self._load_goals, 0)
-
-    # ------------------------------------------------------------------
-    # Diet menu
-    # ------------------------------------------------------------------
-
-    def _build_diet_menu(self) -> None:
-        """Create MDDropdownMenu for diet preset selection."""
-        items = []
-        for key, label in DIET_PRESET_LABELS.items():
-            def _cb(k=key, l=label):
-                return lambda: self._select_diet(k, l)
-            items.append({"text": label, "on_release": _cb()})
-        self._diet_menu = MDDropdownMenu(
-            caller=self.ids.diet_dropdown,
-            items=items,
-        )
-
-    def open_diet_menu(self) -> None:
-        """Open the diet preset dropdown (called from KV on_release)."""
-        if self._diet_menu:
-            self._diet_menu.open()
-
-    def _select_diet(self, key: str, label: str) -> None:
-        """Apply a named diet preset and update display.
-
-        Args:
-            key: Preset key, e.g. 'keto'.
-            label: Display label.
-        """
-        self._diet_key = key
-        self.ids.diet_text.text = label
-        self._diet_menu.dismiss()
-        self.on_diet_preset_selected(label)
 
     # ------------------------------------------------------------------
     # Data loading
@@ -103,128 +93,33 @@ class GoalsScreen(BaseScreen):
         if goals is None:
             return
 
-        self._updating_sliders = True
         self.protein_pct = goals.protein_pct
         self.carbs_pct = goals.carbs_pct
         self.fat_pct = goals.fat_pct
-        self.ids.meals_slider.value = goals.meals_per_day
-
-        self._diet_key = goals.diet_type
-        diet_label = DIET_PRESET_LABELS.get(goals.diet_type, "Balanced")
-        self.ids.diet_text.text = diet_label
 
         if goals.calorie_target:
             self.ids.calorie_label.text = f"{goals.calorie_target:.0f} kcal / day"
-
-        self._update_gram_labels(goals.calorie_target or 0)
-        self._updating_sliders = False
-
-    # ------------------------------------------------------------------
-    # Slider coupling
-    # ------------------------------------------------------------------
-
-    def on_protein_slider(self, value: float) -> None:
-        """Handle protein slider movement — adjust carbs/fat proportionally.
-
-        Args:
-            value: New protein percentage value from the slider.
-        """
-        if self._updating_sliders:
-            return
-        self._updating_sliders = True
-        self.protein_pct = round(value, 1)
-        remaining = 100.0 - self.protein_pct
-        total_other = self.carbs_pct + self.fat_pct
-        if total_other > 0:
-            self.carbs_pct = round(remaining * (self.carbs_pct / total_other), 1)
-            self.fat_pct = round(100.0 - self.protein_pct - self.carbs_pct, 1)
         else:
-            self.carbs_pct = round(remaining / 2, 1)
-            self.fat_pct = round(remaining / 2, 1)
-        self._sync_sliders_to_ui()
-        self._set_custom_preset()
-        self._updating_sliders = False
-
-    def on_carbs_slider(self, value: float) -> None:
-        """Handle carbs slider movement — adjust protein/fat proportionally.
-
-        Args:
-            value: New carbs percentage value.
-        """
-        if self._updating_sliders:
-            return
-        self._updating_sliders = True
-        self.carbs_pct = round(value, 1)
-        remaining = 100.0 - self.carbs_pct
-        total_other = self.protein_pct + self.fat_pct
-        if total_other > 0:
-            self.protein_pct = round(remaining * (self.protein_pct / total_other), 1)
-            self.fat_pct = round(100.0 - self.carbs_pct - self.protein_pct, 1)
-        else:
-            self.protein_pct = round(remaining / 2, 1)
-            self.fat_pct = round(remaining / 2, 1)
-        self._sync_sliders_to_ui()
-        self._set_custom_preset()
-        self._updating_sliders = False
-
-    def on_fat_slider(self, value: float) -> None:
-        """Handle fat slider movement — adjust protein/carbs proportionally.
-
-        Args:
-            value: New fat percentage value.
-        """
-        if self._updating_sliders:
-            return
-        self._updating_sliders = True
-        self.fat_pct = round(value, 1)
-        remaining = 100.0 - self.fat_pct
-        total_other = self.protein_pct + self.carbs_pct
-        if total_other > 0:
-            self.protein_pct = round(remaining * (self.protein_pct / total_other), 1)
-            self.carbs_pct = round(100.0 - self.fat_pct - self.protein_pct, 1)
-        else:
-            self.protein_pct = round(remaining / 2, 1)
-            self.carbs_pct = round(remaining / 2, 1)
-        self._sync_sliders_to_ui()
-        self._set_custom_preset()
-        self._updating_sliders = False
-
-    def _sync_sliders_to_ui(self) -> None:
-        """Push current pct properties back to the slider widgets."""
-        self.ids.protein_slider.value = self.protein_pct
-        self.ids.carbs_slider.value = self.carbs_pct
-        self.ids.fat_slider.value = self.fat_pct
-        self.ids.protein_label.text = f"Protein: {self.protein_pct:.0f}%"
-        self.ids.carbs_label.text = f"Carbs: {self.carbs_pct:.0f}%"
-        self.ids.fat_label.text = f"Fat: {self.fat_pct:.0f}%"
-        self.ids.pie_chart.protein_pct = self.protein_pct
-        self.ids.pie_chart.carbs_pct = self.carbs_pct
-        self.ids.pie_chart.fat_pct = self.fat_pct
-
-    def _set_custom_preset(self) -> None:
-        self._diet_key = "custom"
-        self.ids.diet_text.text = DIET_PRESET_LABELS["custom"]
+            self.ids.calorie_label.text = "— Set profile data first —"
 
     # ------------------------------------------------------------------
-    # Preset selection
+    # Macro editor page
     # ------------------------------------------------------------------
 
-    def on_diet_preset_selected(self, label: str) -> None:
-        """Apply the chosen diet preset macro percentages to the sliders.
+    def open_macro_editor(self) -> None:
+        """Open the full-screen macro editor."""
+        if self._edit_sheet is None:
+            self._edit_sheet = EditMacrosSheet(goals_screen=self)
+        self._edit_sheet.populate()
+        self._edit_sheet.open()
 
-        Args:
-            label: Display label from the diet type spinner.
-        """
-        key = next((k for k, v in DIET_PRESET_LABELS.items() if v == label), None)
-        if key is None or key == "custom":
-            return
-        preset = DIET_PRESETS[key]
-        self._updating_sliders = True
-        self.protein_pct = preset["protein_pct"]
-        self.carbs_pct = preset["carbs_pct"]
-        self.fat_pct = preset["fat_pct"]
-        self._sync_sliders_to_ui()
-        self._updating_sliders = False
+    def apply_macro_split(self, protein: float, carbs: float, fat: float) -> None:
+        """Apply percentages and persist them."""
+        self.protein_pct = round(protein, 1)
+        self.carbs_pct = round(carbs, 1)
+        self.fat_pct = round(fat, 1)
+        self.save_goals()
+
 
     # ------------------------------------------------------------------
     # Save
@@ -240,9 +135,6 @@ class GoalsScreen(BaseScreen):
         repo: GoalsRepository = self.get_repo(GoalsRepository)
         existing = repo.get_for_profile(user_id)
 
-        diet_key = self._diet_key or "custom"
-        meals_per_day = int(self.ids.meals_slider.value)
-
         calorie_target = self._recalculate_calories(user_id)
 
         from services.repository import Repository  # avoid circular at module level
@@ -252,8 +144,8 @@ class GoalsScreen(BaseScreen):
             protein_pct=self.protein_pct,
             carbs_pct=self.carbs_pct,
             fat_pct=self.fat_pct,
-            diet_type=diet_key,
-            meals_per_day=meals_per_day,
+            diet_type=existing.diet_type if existing else "custom",
+            meals_per_day=existing.meals_per_day if existing else 3,
             calorie_target=calorie_target,
             updated_at=time.time(),
         )
@@ -265,7 +157,8 @@ class GoalsScreen(BaseScreen):
             self.show_success("Goals saved")
             if calorie_target:
                 self.ids.calorie_label.text = f"{calorie_target:.0f} kcal / day"
-            self._update_gram_labels(calorie_target or 0)
+            else:
+                self.ids.calorie_label.text = "— Set profile data first —"
         except Exception as exc:  # pylint: disable=broad-except
             self.hide_loading()
             self.show_error(f"Save failed: {exc}")
@@ -297,18 +190,3 @@ class GoalsScreen(BaseScreen):
             fat_pct=self.fat_pct,
         )
         return targets["calories"]
-
-    def _update_gram_labels(self, calories: float) -> None:
-        """Update the gram target display labels below the sliders.
-
-        Args:
-            calories: Daily calorie target.
-        """
-        grams = MacroCalculator.calculate_macro_grams(
-            calories, self.protein_pct, self.carbs_pct, self.fat_pct
-        )
-        self.ids.grams_label.text = (
-            f"Protein: {grams['protein_g']:.0f}g  |  "
-            f"Carbs: {grams['carbs_g']:.0f}g  |  "
-            f"Fat: {grams['fat_g']:.0f}g"
-        )
