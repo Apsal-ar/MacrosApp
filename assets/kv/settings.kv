@@ -2,9 +2,20 @@
     MDBoxLayout:
         orientation: "vertical"
 
-        MDTopAppBar:
-            title: "Settings"
-            type: "small"
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            padding: ["16dp", "0dp", "16dp", "0dp"]
+
+            MDLabel:
+                text: "Settings"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "center"
+                valign: "center"
 
         MDScrollView:
             MDBoxLayout:
@@ -47,9 +58,9 @@
 
                 MDDivider:
 
-                # ── Sync ───────────────────────────────────────────────
+                # ── Cloud ──────────────────────────────────────────────
                 MDLabel:
-                    text: "Sync"
+                    text: "Cloud"
                     font_style: "Title"
                     role: "small"
                     padding: ["16dp", "12dp"]
@@ -59,24 +70,11 @@
                 MDListItem:
                     MDListItemHeadlineText:
                         id: online_indicator
-                        text: "Offline"
+                        text: "Not connected"
 
                     MDListItemSupportingText:
                         id: sync_status_label
-                        text: "Last sync: Never  •  Pending: 0"
-
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: "56dp"
-                    padding: ["16dp", "4dp"]
-
-                    MDButton:
-                        style: "outlined"
-                        size_hint_x: 1
-                        on_release: root.sync_now()
-
-                        MDButtonText:
-                            text: "Sync Now"
+                        text: "All data stored in cloud"
 
                 MDDivider:
 

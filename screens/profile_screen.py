@@ -51,8 +51,9 @@ from kivymd.uix.textfield import MDTextField
 from screens.base_screen import BaseScreen
 from services.macro_calculator import MacroCalculator
 from services.repository import GoalsRepository, ProfileRepository
-from models.user import Profile
+from models.user import Goals, Profile
 from utils.constants import (
+    DEFAULT_MEAL_LABELS,
     ACTIVITY_DESCRIPTIONS,
     ACTIVITY_KEY_MIGRATION,
     ACTIVITY_LABELS,
@@ -225,6 +226,10 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
+                            size_hint_x: 0.45
+                            text_size: self.size
+                            shorten: True
+                            shorten_from: "left"
 
                     MDDivider:
 
@@ -239,6 +244,10 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
+                            size_hint_x: 0.45
+                            text_size: self.size
+                            shorten: True
+                            shorten_from: "left"
 
                     MDDivider:
 
@@ -253,6 +262,10 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
+                            size_hint_x: 0.45
+                            text_size: self.size
+                            shorten: True
+                            shorten_from: "left"
 
                     MDDivider:
 
@@ -267,6 +280,10 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
+                            size_hint_x: 0.45
+                            text_size: self.size
+                            shorten: True
+                            shorten_from: "left"
 
                     MDDivider:
 
@@ -281,6 +298,10 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
+                            size_hint_x: 0.45
+                            text_size: self.size
+                            shorten: True
+                            shorten_from: "left"
 
                     MDDivider:
 
@@ -295,6 +316,10 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
+                            size_hint_x: 0.45
+                            text_size: self.size
+                            shorten: True
+                            shorten_from: "left"
 
         MDBoxLayout:
             size_hint_y: None
@@ -432,9 +457,154 @@ _KV = """
 
                 MDButtonText:
                     text: "Calculate"
+
+# ── Meals customization sheet ────────────────────────────────────────────
+<MealsSheet>:
+    background: " "
+    background_color: 0, 0, 0, 0
+    auto_dismiss: False
+
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: app.theme_cls.backgroundColor
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            spacing: "4dp"
+            padding: ["4dp", "0dp", "16dp", "0dp"]
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.dismiss()
+
+            MDLabel:
+                text: "Meals"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "left"
+                valign: "center"
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["16dp", "16dp", "16dp", "0dp"]
+                spacing: "12dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                MDCard:
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    radius: [dp(12)]
+                    padding: ["16dp", "12dp", "16dp", "12dp"]
+
+                    MDListItem:
+                        theme_bg_color: "Custom"
+                        md_bg_color: 0, 0, 0, 0
+                        on_release: root.open_meals_per_day_picker()
+                        MDListItemHeadlineText:
+                            text: "Meals per day"
+                        MDListItemTrailingSupportingText:
+                            id: meals_per_day_value
+                            text: "3"
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.primaryColor
+                            halign: "right"
+
+                MDLabel:
+                    text: "Meals names"
+                    font_style: "Title"
+                    role: "small"
+                    size_hint_y: None
+                    height: "36dp"
+                    padding: ["0dp", "8dp", "0dp", "0dp"]
+
+                MDCard:
+                    id: meal_names_container
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    radius: [dp(12)]
+                    padding: "0dp"
+                    elevation: 0
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "88dp"
+            padding: ["16dp", "8dp", "16dp", "24dp"]
+
+            MDButton:
+                style: "filled"
+                size_hint_x: 1
+                on_release: root._save_and_dismiss()
+
+                MDButtonText:
+                    text: "Save"
 """
 
 _DRUM_KV = """
+# ── Bottom-anchored meals-per-day drum-roll picker ────────────────────────
+<MealsPerDayPickerSheet>:
+    background: " "
+    background_color: 0, 0, 0, 0.55
+    auto_dismiss: True
+
+    FloatLayout:
+        size_hint: 1, 1
+
+        MDCard:
+            orientation: "vertical"
+            size_hint_x: 1
+            size_hint_y: None
+            height: "356dp"
+            pos_hint: {"x": 0, "y": 0}
+            radius: [dp(16), dp(16), 0, 0]
+            padding: "0dp"
+            elevation: 4
+            md_bg_color: app.theme_cls.surfaceContainerHighColor
+
+            MDLabel:
+                text: "Meals per day"
+                size_hint_y: None
+                height: "52dp"
+                halign: "center"
+                valign: "center"
+                font_style: "Title"
+                bold: True
+
+            MDBoxLayout:
+                id: picker_slot
+                size_hint: 1, 1
+                padding: ["0dp", "0dp", "0dp", "0dp"]
+
+            MDBoxLayout:
+                size_hint_y: None
+                height: "68dp"
+                padding: ["24dp", "8dp", "24dp", "16dp"]
+                spacing: "16dp"
+
+                MDButton:
+                    style: "text"
+                    size_hint_x: 1
+                    on_release: root.dismiss()
+                    MDButtonText:
+                        text: "Cancel"
+
+                MDButton:
+                    style: "filled"
+                    size_hint_x: 1
+                    on_release: root._confirm()
+                    MDButtonText:
+                        text: "Ok"
+
 # ── Bottom-anchored drum-roll height picker ───────────────────────────────
 <HeightPickerSheet>:
     background: " "
@@ -729,6 +899,38 @@ class HeightPickerSheet(ModalView):
     def update_value(self, value: int) -> None:
         """Reposition the drum roll to *value* before reopening."""
         self._drum.jump_to(max(80, min(250, value)))
+
+    def _confirm(self) -> None:
+        if self._callback:
+            self._callback(self._drum.value)
+        self.dismiss()
+
+
+# ---------------------------------------------------------------------------
+# MealsPerDayPickerSheet — drum-roll picker for 1–10 meals
+# ---------------------------------------------------------------------------
+
+class MealsPerDayPickerSheet(ModalView):
+    """Bottom sheet containing a drum-roll picker for 1–10 meals per day."""
+
+    def __init__(
+        self,
+        initial: int,
+        callback: Callable[[int], None],
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(size_hint=(1, 1), **kwargs)
+        self._callback = callback
+        self._drum = DrumRollPicker(
+            min_val=1,
+            max_val=10,
+            initial=max(1, min(10, initial)),
+        )
+        self.ids.picker_slot.add_widget(self._drum)
+
+    def update_value(self, value: int) -> None:
+        """Reposition the drum roll to *value* before reopening."""
+        self._drum.jump_to(max(1, min(10, value)))
 
     def _confirm(self) -> None:
         if self._callback:
@@ -1105,6 +1307,11 @@ class BodyFatSheet(ModalView):
         self._ps._hips_cm = self._hips_cm
         self._ps._body_fat_pct = body_fat
         self._ps._refresh_display(self._ps.get_unit_system())
+
+        user_id = self._ps.get_current_user_id()
+        if user_id:
+            self._ps._persist_profile(user_id)
+
         self.dismiss()
 
 
@@ -1412,6 +1619,126 @@ class EditProfileSheet(ModalView):
 
 
 # ---------------------------------------------------------------------------
+# MealsSheet — meals per day + meal names
+# ---------------------------------------------------------------------------
+
+class MealsSheet(ModalView):
+    """Full-screen sheet to configure meals per day and meal names."""
+
+    def __init__(self, profile_screen: ProfileScreen, **kwargs: Any) -> None:
+        super().__init__(size_hint=(1, 1), **kwargs)
+        self._ps = profile_screen
+        self._meals_per_day: int = 3
+        self._meal_labels: Dict[int, str] = {}
+        self._meal_fields: Dict[int, MDTextField] = {}
+        self._meals_picker: Optional[MealsPerDayPickerSheet] = None
+
+    def populate(self) -> None:
+        """Load current goals and build the form."""
+        user_id = self._ps.get_current_user_id()
+        if not user_id:
+            return
+        goals_repo: GoalsRepository = self._ps.get_repo(GoalsRepository)
+        goals = goals_repo.get_for_profile(user_id)
+        if goals:
+            self._meals_per_day = goals.meals_per_day
+            self._meal_labels = dict(goals.meal_labels or {})
+        else:
+            self._meals_per_day = 3
+            self._meal_labels = {}
+
+        self._sync_meal_labels_to_count()
+        self.ids.meals_per_day_value.text = str(self._meals_per_day)
+        self._build_meal_name_rows()
+
+    def _sync_meal_labels_to_count(self) -> None:
+        """Ensure _meal_labels has entries 1..N; fill gaps from DEFAULT_MEAL_LABELS."""
+        defaults = {i: DEFAULT_MEAL_LABELS.get(i, f"Meal {i}") for i in range(1, 11)}
+        for i in range(1, self._meals_per_day + 1):
+            if i not in self._meal_labels:
+                self._meal_labels[i] = defaults.get(i, f"Meal {i}")
+        # Drop entries beyond current count
+        to_drop = [k for k in self._meal_labels if k > self._meals_per_day]
+        for k in to_drop:
+            del self._meal_labels[k]
+
+    def open_meals_per_day_picker(self) -> None:
+        """Open the carousel picker for meals per day (1–10)."""
+        if self._meals_picker is None:
+            self._meals_picker = MealsPerDayPickerSheet(
+                initial=self._meals_per_day,
+                callback=self.set_meals_per_day,
+            )
+        else:
+            self._meals_picker.update_value(self._meals_per_day)
+        self._meals_picker.open()
+
+    def set_meals_per_day(self, n: int) -> None:
+        """Update meals per day and rebuild name rows."""
+        self._meals_per_day = max(1, min(10, n))
+        self._sync_meal_labels_to_count()
+        self.ids.meals_per_day_value.text = str(self._meals_per_day)
+        self._build_meal_name_rows()
+
+    def _build_meal_name_rows(self) -> None:
+        """Populate meal_names_container with editable rows."""
+        container = self.ids.meal_names_container
+        container.clear_widgets()
+        self._meal_fields.clear()
+
+        for i in range(1, self._meals_per_day + 1):
+            row = MDBoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(56),
+                padding=["16dp", "8dp", "16dp", "8dp"],
+            )
+            row.add_widget(MDLabel(
+                text=f"Meal {i}",
+                size_hint_x=0.3,
+                halign="left",
+            ))
+            field = MDTextField(
+                hint_text=DEFAULT_MEAL_LABELS.get(i, f"Meal {i}"),
+                text=self._meal_labels.get(i, ""),
+                size_hint_x=0.7,
+                mode="filled",
+            )
+            self._meal_fields[i] = field
+            row.add_widget(field)
+            container.add_widget(row)
+            if i < self._meals_per_day:
+                container.add_widget(MDDivider())
+
+    def _save_and_dismiss(self) -> None:
+        """Collect values, save to goals, dismiss."""
+        for i, field in self._meal_fields.items():
+            name = (field.text or "").strip()
+            self._meal_labels[i] = name or DEFAULT_MEAL_LABELS.get(i, f"Meal {i}")
+
+        user_id = self._ps.get_current_user_id()
+        if not user_id:
+            self.dismiss()
+            return
+
+        goals_repo: GoalsRepository = self._ps.get_repo(GoalsRepository)
+        goals = goals_repo.get_for_profile(user_id)
+        if not goals:
+            goals = Goals(
+                id=goals_repo.new_id(),
+                profile_id=user_id,
+                updated_at=time.time(),
+            )
+        goals.meals_per_day = self._meals_per_day
+        goals.meal_labels = dict(self._meal_labels)
+        goals.updated_at = time.time()
+        goals_repo.save(goals)
+
+        self._ps._refresh_display(self._ps.get_unit_system())
+        self.dismiss()
+
+
+# ---------------------------------------------------------------------------
 # ProfileScreen
 # ---------------------------------------------------------------------------
 
@@ -1433,9 +1760,12 @@ class ProfileScreen(BaseScreen):
     _neck_cm: Optional[float] = None
     _hips_cm: Optional[float] = None
     _body_fat_pct: Optional[float] = None
+    _meals_per_day: int = 3
+    _meal_labels: Dict[int, str] = {}
 
     _edit_sheet: Optional[EditProfileSheet] = None
     _body_fat_sheet: Optional[BodyFatSheet] = None
+    _meals_sheet: Optional[MealsSheet] = None
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -1473,6 +1803,15 @@ class ProfileScreen(BaseScreen):
         self._height_cm = profile.height_cm
         self._weight_kg = profile.weight_kg
         self._age = profile.age
+        self._waist_cm = profile.waist_cm
+        self._neck_cm = profile.neck_cm
+        self._hips_cm = profile.hips_cm
+        self._body_fat_pct = profile.body_fat_pct
+
+        goals_repo = self.get_repo(GoalsRepository)
+        goals = goals_repo.get_for_profile(user_id)
+        self._meals_per_day = goals.meals_per_day if goals else 3
+        self._meal_labels = dict(goals.meal_labels or {}) if goals else {}
 
         self._refresh_display(unit)
 
@@ -1519,6 +1858,7 @@ class ProfileScreen(BaseScreen):
         ids.body_fat_value.text = (
             f"{self._body_fat_pct:.1f} %" if self._body_fat_pct is not None else "Tap to calculate"
         )
+        ids.customize_meals_summary.text = f"{self._meals_per_day} meals"
 
     # ------------------------------------------------------------------
     # Edit sheet
@@ -1541,6 +1881,13 @@ class ProfileScreen(BaseScreen):
             self._body_fat_sheet = BodyFatSheet(profile_screen=self)
         self._body_fat_sheet.populate()
         self._body_fat_sheet.open()
+
+    def open_customize_meals(self) -> None:
+        """Open the meals customization sheet."""
+        if self._meals_sheet is None:
+            self._meals_sheet = MealsSheet(profile_screen=self)
+        self._meals_sheet.populate()
+        self._meals_sheet.open()
 
     @staticmethod
     def _calculate_body_fat_pct(
@@ -1601,6 +1948,10 @@ class ProfileScreen(BaseScreen):
             activity=self._activity,
             goal=self._goal,
             unit_system=self.get_unit_system(),
+            waist_cm=self._waist_cm,
+            neck_cm=self._neck_cm,
+            hips_cm=self._hips_cm,
+            body_fat_pct=self._body_fat_pct,
             updated_at=time.time(),
         )
         repo: ProfileRepository = self.get_repo(ProfileRepository)

@@ -1,10 +1,10 @@
-"""Settings screen — unit toggle, My Foods, My Recipes, sync status, export.
+"""Settings screen — unit toggle, My Foods, My Recipes, cloud status, export.
 
 Responsibilities:
 - Unit system toggle (metric / imperial)
 - My Foods: list user-created manual foods; edit and swipe-to-delete
 - My Recipes: list recipes with per-serving macros; create/edit/delete
-- Sync status: last sync time, pending ops count, manual sync trigger
+- Cloud connection indicator
 - Data export: write meal history to CSV in the app's documents directory
 - About section with app version
 """
@@ -15,7 +15,6 @@ import csv
 import io
 import logging
 import time
-from datetime import datetime
 from typing import List
 
 from kivy.clock import Clock
@@ -24,10 +23,9 @@ from kivymd.app import MDApp
 
 from screens.base_screen import BaseScreen
 from services.food_service import FoodService
-from services.repository import MealRepository, MealItemRepository, RecipeRepository
+from services.repository import MealRepository, MealItemRepository, RecipeRepository, Repository
 from models.food import Food
 from models.recipe import Recipe
-from sync.sync_manager import SyncManager
 import config
 
 logger = logging.getLogger(__name__)
@@ -77,17 +75,11 @@ class SettingsScreen(BaseScreen):
             self._add_food_list_item(food)
 
     def _refresh_sync_status(self) -> None:
-        manager = SyncManager.get_instance()
-        status = manager.status
-        last_sync = (
-            datetime.fromtimestamp(status.last_synced_at).strftime("%H:%M:%S")
-            if status.last_synced_at
-            else "Never"
-        )
+        connected = Repository._supabase is not None
+        self.ids.online_indicator.text = "Connected" if connected else "Not connected"
         self.ids.sync_status_label.text = (
-            f"Last sync: {last_sync}  •  Pending: {status.pending_count}"
+            "All data stored in cloud" if connected else "No database connection"
         )
-        self.ids.online_indicator.text = "Online" if status.is_online else "Offline"
 
     # ------------------------------------------------------------------
     # Unit system toggle
@@ -155,16 +147,10 @@ class SettingsScreen(BaseScreen):
     # Sync
     # ------------------------------------------------------------------
 
-    def sync_now(self) -> None:
-        """Trigger an immediate sync cycle."""
-        self.show_loading("Syncing…")
-        SyncManager.get_instance().sync_now()
-        Clock.schedule_once(lambda dt: self._post_sync(), 1)
-
-    def _post_sync(self) -> None:
-        self.hide_loading()
+    def refresh_connection(self) -> None:
+        """Refresh the cloud connection indicator."""
         self._refresh_sync_status()
-        self.show_success("Sync complete")
+        self.show_success("Connection status refreshed")
 
     # ------------------------------------------------------------------
     # Export
@@ -211,19 +197,15 @@ class SettingsScreen(BaseScreen):
         writer = csv.writer(output)
         writer.writerow(["Date", "Meal", "Food", "Quantity (g)", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"])
 
-        conn = meal_repo._db.connection()  # pylint: disable=protected-access
-        meals = conn.execute(
-            "SELECT * FROM meals WHERE profile_id = ? ORDER BY date, meal_number",
-            (user_id,),
-        ).fetchall()
+        meals = meal_repo.get_all_meals(user_id)
 
-        for meal_row in meals:
-            items = item_repo.get_items_for_meal(meal_row["id"])
+        for meal in meals:
+            items = item_repo.get_items_for_meal(meal.id)
             for item in items:
                 s = item.scaled_nutrition
                 writer.writerow([
-                    meal_row["date"],
-                    meal_row["label"] or f"Meal {meal_row['meal_number']}",
+                    meal.date,
+                    meal.label or f"Meal {meal.meal_number}",
                     item.food_name,
                     item.quantity_g,
                     round(s.calories, 1),

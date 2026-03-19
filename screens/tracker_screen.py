@@ -125,8 +125,14 @@ class TrackerScreen(BaseScreen):
         self._meals.clear()
         self._meal_cards.clear()
 
+        goals_repo = self.get_repo(GoalsRepository)
+        goals = goals_repo.get_for_profile(user_id)
+        meal_labels = goals.meal_labels if goals and goals.meal_labels else {}
         for meal_number in range(1, self._meals_per_day + 1):
-            label = DEFAULT_MEAL_LABELS.get(meal_number, f"Meal {meal_number}")
+            label = meal_labels.get(
+                meal_number,
+                DEFAULT_MEAL_LABELS.get(meal_number, f"Meal {meal_number}"),
+            )
             meal = meal_repo.get_or_create(user_id, date_str, meal_number, label)
             meal.items = item_repo.get_items_for_meal(meal.id)
             self._meals[meal_number] = meal

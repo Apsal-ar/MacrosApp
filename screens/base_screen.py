@@ -129,8 +129,7 @@ class BaseScreen(MDScreen):
     def get_repo(self, repo_class: Type) -> Any:
         """Return a lazy-initialised singleton repository instance.
 
-        Repositories are created once per screen instance and reused,
-        avoiding redundant CacheDB connection overhead.
+        Repositories are created once per screen instance and reused.
 
         Args:
             repo_class: The repository class to instantiate (e.g. MealRepository).

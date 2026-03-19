@@ -2,7 +2,35 @@
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, List
+
+# ---------------------------------------------------------------------------
+# App color palette (hex and 0–1 RGBA)
+# ---------------------------------------------------------------------------
+COLOR_BG: str = "#121212"           # main background (black)
+COLOR_SURFACE: str = "#212F3C"      # cards, sections (dark grey)
+COLOR_PRIMARY: str = "#009688"      # teal — headers, accents, values
+COLOR_FAT: str = "#FFB93B"          # fat (quantities, pie, bars)
+COLOR_CARBS: str = "#EC253F"        # carbs
+COLOR_PROTEIN: str = "#155DFC"      # protein
+
+
+def hex_to_rgba(hex_str: str, alpha: float = 1.0) -> List[float]:
+    """Convert #RRGGBB to [r, g, b, a] in 0–1 range."""
+    hex_str = hex_str.lstrip("#")
+    r = int(hex_str[0:2], 16) / 255.0
+    g = int(hex_str[2:4], 16) / 255.0
+    b = int(hex_str[4:6], 16) / 255.0
+    return [r, g, b, alpha]
+
+
+# Precomputed RGBA for Kivy
+RGBA_BG: List[float] = hex_to_rgba(COLOR_BG)
+RGBA_SURFACE: List[float] = hex_to_rgba(COLOR_SURFACE)
+RGBA_PRIMARY: List[float] = hex_to_rgba(COLOR_PRIMARY)
+RGBA_FAT: List[float] = hex_to_rgba(COLOR_FAT)
+RGBA_CARBS: List[float] = hex_to_rgba(COLOR_CARBS)
+RGBA_PROTEIN: List[float] = hex_to_rgba(COLOR_PROTEIN)
 
 # ---------------------------------------------------------------------------
 # Physical Activity Level multipliers
@@ -101,9 +129,13 @@ DEFAULT_MEAL_LABELS: Dict[int, str] = {
     1: "Breakfast",
     2: "Lunch",
     3: "Dinner",
-    4: "Snack 1",
-    5: "Snack 2",
-    6: "Snack 3",
+    4: "Tea",
+    5: "Snacks",
+    6: "Snack 1",
+    7: "Snack 2",
+    8: "Snack 3",
+    9: "Snack 4",
+    10: "Snack 5",
 }
 
 # ---------------------------------------------------------------------------

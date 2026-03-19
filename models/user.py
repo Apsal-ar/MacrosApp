@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Dict, Optional
 
 
 @dataclass
@@ -32,6 +32,10 @@ class Profile:
     activity: Optional[str] = None     # 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
     goal: Optional[str] = None         # 'lose' | 'maintain' | 'gain'
     unit_system: str = "metric"        # 'metric' | 'imperial'
+    waist_cm: Optional[float] = None
+    neck_cm: Optional[float] = None
+    hips_cm: Optional[float] = None
+    body_fat_pct: Optional[float] = None
     updated_at: float = 0.0
 
 
@@ -58,6 +62,7 @@ class Goals:
     fat_pct: float = 30.0
     diet_type: str = "balanced"
     meals_per_day: int = 3
+    meal_labels: Optional[Dict[int, str]] = None  # meal_number -> label, e.g. {1: "Breakfast", 2: "Lunch"}
     calorie_target: Optional[float] = None
     updated_at: float = 0.0
 

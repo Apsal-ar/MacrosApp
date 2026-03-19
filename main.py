@@ -1,16 +1,15 @@
 """Macro Tracker — application entry point.
 
 Responsibilities:
-- Initialise Supabase client
-- Build the SQLite cache schema (CacheDB singleton)
+- Initialise Supabase client and attach it to the Repository layer
 - Construct the ScreenManager with all four screens
 - Authenticate the user (email + password via Supabase Auth)
-- Start the SyncManager polling loop post-login
 - Expose app-level state: current_user_id, unit_system
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Optional
@@ -27,8 +26,13 @@ from kivymd.uix.screen import MDScreen                          # noqa: E402
 from kivymd.uix.boxlayout import MDBoxLayout                   # noqa: E402
 
 import config                                                   # noqa: E402
-from sync.cache_db import CacheDB                               # noqa: E402
-from sync.sync_manager import SyncManager                       # noqa: E402
+from services.repository import Repository                      # noqa: E402
+from utils.constants import (                                    # noqa: E402
+    COLOR_PRIMARY,
+    RGBA_BG,
+    RGBA_PRIMARY,
+    RGBA_SURFACE,
+)
 from screens.profile_screen import ProfileScreen                # noqa: E402
 from screens.goals_screen import GoalsScreen                    # noqa: E402
 from screens.tracker_screen import TrackerScreen                # noqa: E402
@@ -200,23 +204,33 @@ class MacroTrackerApp(MDApp):
         Returns:
             A ScreenManager containing the login and app shell screens.
         """
-        self.theme_cls.primary_palette = "Teal"
-        self.theme_cls.theme_style = "Light"
+        self.theme_cls.on_colors = self._apply_custom_colors
+        self.theme_cls.primary_palette = COLOR_PRIMARY
+        self.theme_cls.theme_style = "Dark"
 
-        # Initialise SQLite cache (creates schema if not exists)
-        CacheDB.get_instance()
-
-        # Initialise Supabase client
+        # Initialise Supabase client and make it available to all repositories
         self._supabase = self._init_supabase()
+        Repository.set_client(self._supabase)
 
         root_sm = ScreenManager(transition=SlideTransition())
         root_sm.add_widget(LoginScreen())
         root_sm.add_widget(AppShell())
-
-        if config.DEV_AUTO_LOGIN:
-            root_sm.current = "app"
+        root_sm.current = "login"
 
         return root_sm
+
+    def _apply_custom_colors(self) -> None:
+        """Override theme colors to match app palette (dark bg, teal accents)."""
+        tc = self.theme_cls
+        tc.backgroundColor = RGBA_BG
+        tc.surfaceColor = RGBA_BG
+        tc.surfaceDimColor = RGBA_BG
+        tc.surfaceContainerColor = RGBA_SURFACE
+        tc.surfaceContainerLowColor = RGBA_SURFACE
+        tc.surfaceContainerHighColor = RGBA_SURFACE
+        tc.surfaceContainerHighestColor = RGBA_SURFACE
+        tc.primaryColor = RGBA_PRIMARY
+        tc.surfaceTintColor = RGBA_PRIMARY
 
     def on_start(self) -> None:
         """Kivy lifecycle hook — auto-login for development when configured."""
@@ -226,8 +240,11 @@ class MacroTrackerApp(MDApp):
     def _auto_login(self, _dt: float) -> None:
         """Perform a silent Supabase login without showing the login screen.
 
-        Falls back to offline-demo mode when no password is configured.
+        Tries saved session first, then DEV credentials, then login screen.
         """
+        if self._restore_saved_session():
+            return
+
         if self._supabase is not None and config.DEV_AUTO_LOGIN_PASSWORD:
             try:
                 response = self._supabase.auth.sign_in_with_password(
@@ -237,18 +254,22 @@ class MacroTrackerApp(MDApp):
                     }
                 )
                 logger.info("Auto-login succeeded for %s", config.DEV_AUTO_LOGIN_EMAIL)
+                self._persist_session(response)
                 self._on_auth_success(response.user.id)
                 return
             except Exception as exc:  # pylint: disable=broad-except
-                logger.error("Auto-login failed: %s — falling back to offline demo", exc)
+                logger.error("Auto-login failed: %s", exc)
+        else:
+            logger.warning("Auto-login disabled: missing Supabase client or password")
 
-        # No password configured or Supabase unavailable → offline demo.
-        # Use uuid5 (deterministic, derived from the email) so the same
-        # profile row is found in SQLite on every subsequent restart.
-        import uuid  # pylint: disable=import-outside-toplevel
-        demo_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"offline:{config.DEV_AUTO_LOGIN_EMAIL}"))
-        logger.info("Auto-login: offline demo mode, id=%s", demo_id)
-        self._on_auth_success(demo_id)
+        self.root.current = "login"
+        try:
+            login_screen = self.root.get_screen("login")
+            login_screen.ids.email_field.text = config.DEV_AUTO_LOGIN_EMAIL
+            login_screen.ids.password_field.text = config.DEV_AUTO_LOGIN_PASSWORD or ""
+            login_screen.ids.error_label.text = "Auto sign-in failed. Tap Sign In."
+        except Exception:  # pylint: disable=broad-except
+            pass
 
     def _init_supabase(self):
         """Create and return the Supabase client.
@@ -294,6 +315,7 @@ class MacroTrackerApp(MDApp):
                 {"email": email, "password": password}
             )
             user_id = response.user.id
+            self._persist_session(response)
             self._on_auth_success(user_id, login_screen)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Login failed: %s", exc)
@@ -318,6 +340,7 @@ class MacroTrackerApp(MDApp):
         try:
             response = self._supabase.auth.sign_up({"email": email, "password": password})
             user_id = response.user.id
+            self._persist_session(response)
             self._on_auth_success(user_id, login_screen)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Sign-up failed: %s", exc)
@@ -328,7 +351,7 @@ class MacroTrackerApp(MDApp):
         user_id: str,
         login_screen: Optional[LoginScreen] = None,
     ) -> None:
-        """Called after successful auth — bootstrap profile and start sync.
+        """Called after successful auth — bootstrap profile and navigate.
 
         Args:
             user_id: Authenticated user's UUID.
@@ -338,56 +361,102 @@ class MacroTrackerApp(MDApp):
         if login_screen is not None:
             login_screen.ids.error_label.text = ""
 
-        self._ensure_profile_exists(user_id)
-
-        if self._supabase is not None:
-            SyncManager.get_instance().start(self._supabase, user_id)
+        try:
+            self._ensure_profile_exists(user_id)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Profile bootstrap skipped: %s", exc)
 
         # Navigate to app shell (no-op if already there)
         self.root.current = "app"
 
-        # Always land on the Profile tab
+        # Always land on the logging tab
         try:
             app_shell = self.root.get_screen("app")
-            app_shell.ids.inner_sm.current = "profile"
+            app_shell.ids.inner_sm.current = "tracker"
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+    # ------------------------------------------------------------------
+    # Session persistence
+    # ------------------------------------------------------------------
+
+    @property
+    def _session_file(self) -> str:
+        return os.path.join(self.user_data_dir, "supabase_session.json")
+
+    def _persist_session(self, auth_response: object) -> None:
+        """Persist Supabase access + refresh tokens for future auto-login."""
+        try:
+            session = getattr(auth_response, "session", None)
+            if session is None:
+                return
+            access_token = getattr(session, "access_token", None)
+            refresh_token = getattr(session, "refresh_token", None)
+            if not access_token or not refresh_token:
+                return
+            with open(self._session_file, "w", encoding="utf-8") as f:
+                json.dump(
+                    {"access_token": access_token, "refresh_token": refresh_token},
+                    f,
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Could not persist auth session: %s", exc)
+
+    def _restore_saved_session(self) -> bool:
+        """Restore previously saved session and authenticate silently."""
+        if self._supabase is None:
+            return False
+        try:
+            if not os.path.exists(self._session_file):
+                return False
+            with open(self._session_file, "r", encoding="utf-8") as f:
+                tokens = json.load(f)
+            response = self._supabase.auth.set_session(
+                tokens.get("access_token"),
+                tokens.get("refresh_token"),
+            )
+            if not response or not getattr(response, "user", None):
+                return False
+            logger.info("Session restore succeeded for %s", response.user.id)
+            self._persist_session(response)
+            self._on_auth_success(response.user.id)
+            return True
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Session restore failed: %s", exc)
+            self._clear_saved_session()
+            return False
+
+    def _clear_saved_session(self) -> None:
+        try:
+            if os.path.exists(self._session_file):
+                os.remove(self._session_file)
         except Exception:  # pylint: disable=broad-except
             pass
 
     def _enter_offline_demo(self, login_screen: LoginScreen) -> None:
-        """Enter offline demo mode with a deterministic user ID derived from email.
-
-        Using uuid5 ensures the same profile row is found in SQLite across
-        restarts, so data entered offline is never silently lost.
-
-        Args:
-            login_screen: The LoginScreen (provides the email and is navigated away from).
-        """
-        import uuid  # pylint: disable=import-outside-toplevel
-        email = login_screen.ids.email_field.text.strip() or "anonymous"
-        demo_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"offline:{email}"))
-        logger.info("Entering offline demo mode, id=%s", demo_id)
-        self._on_auth_success(demo_id, login_screen)
+        """Show a message that network is required — offline mode is disabled."""
+        login_screen.ids.error_label.text = "Network connection required"
 
     def _ensure_profile_exists(self, user_id: str) -> None:
-        """Create a bare profile row in SQLite if one doesn't exist yet.
+        """Create a bare profile row in Supabase if one doesn't exist yet.
 
         Args:
             user_id: The newly authenticated user's UUID.
         """
-        from services.repository import ProfileRepository, GoalsRepository, Repository  # noqa: PLC0415
-        from models.user import Profile, Goals                                           # noqa: PLC0415
-        import time                                                                      # noqa: PLC0415
+        from services.repository import ProfileRepository, GoalsRepository  # noqa: PLC0415
+        from models.user import Profile, Goals                              # noqa: PLC0415
+        import time as _time                                                # noqa: PLC0415
 
         profile_repo = ProfileRepository()
         if profile_repo.get(user_id) is None:
-            profile_repo.save(Profile(id=user_id, email="", updated_at=time.time()))
+            profile_repo.save(Profile(id=user_id, email="", updated_at=_time.time()))
 
         goals_repo = GoalsRepository()
         if goals_repo.get_for_profile(user_id) is None:
             goals_repo.save(Goals(
                 id=Repository.new_id(),
                 profile_id=user_id,
-                updated_at=time.time(),
+                updated_at=_time.time(),
             ))
 
     # ------------------------------------------------------------------

@@ -1,12 +1,10 @@
-"""Repository pattern — offline-first CRUD for all domain entities.
+"""Repository pattern — direct Supabase PostgreSQL CRUD for all domain entities.
 
-Write flow:
-  1. Write locally to SQLite (instant, UI never waits for network).
-  2. Enqueue the operation for deferred push to Supabase.
-  3. Mark the row sync_status='pending'.
+All reads and writes go directly to the remote Supabase database.
+No local caching or offline support.
 
-Read flow:
-  - Always read from SQLite cache; Supabase data arrives via SyncManager pull.
+Call Repository.set_client(supabase) once at app startup before any
+repository method is invoked.
 
 Domain repositories:
   ProfileRepository, GoalsRepository, FoodRepository,
@@ -21,8 +19,6 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from sync.cache_db import CacheDB
-from sync.sync_queue import SyncQueue
 from models.user import Profile, Goals
 from models.food import Food, NutritionInfo
 from models.meal import Meal, MealItem
@@ -36,60 +32,32 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class Repository:
-    """Abstract base providing common offline-first write helpers.
+    """Abstract base providing the shared Supabase client reference.
 
-    Subclasses define _TABLE_NAME and call _save_row / _delete_row.
-    All reads are performed directly in subclasses using _db.connection().
+    Subclasses call self._table(name) to obtain a Supabase table handle.
+    If the client has not been initialised, all reads return empty/None and
+    all writes are silently skipped.
     """
 
-    _TABLE_NAME: str = ""
+    _supabase: Optional[Any] = None
 
-    def __init__(self) -> None:
-        self._db = CacheDB.get_instance()
-        self._queue = SyncQueue()
-
-    # ------------------------------------------------------------------
-    # Protected write helpers
-    # ------------------------------------------------------------------
-
-    def _save_row(self, row: Dict[str, Any], operation: str = "insert") -> None:
-        """Upsert a row into the local cache and enqueue it for sync.
+    @classmethod
+    def set_client(cls, client: Any) -> None:
+        """Attach the Supabase client for all repositories.
 
         Args:
-            row: Dict mapping column names to values; must contain 'id'.
-            operation: 'insert' or 'update' — passed verbatim to SyncQueue.
+            client: An initialised supabase-py Client instance (or None).
         """
-        row = {**row, "sync_status": "pending", "updated_at": row.get("updated_at", time.time())}
-        cols = ", ".join(row.keys())
-        placeholders = ", ".join("?" * len(row))
-        conn = self._db.connection()
-        conn.execute(
-            f"INSERT OR REPLACE INTO {self._TABLE_NAME} ({cols}) VALUES ({placeholders})",  # noqa: S608
-            list(row.values()),
-        )
-        conn.commit()
-        self._queue.enqueue(self._TABLE_NAME, row["id"], operation, row)
+        cls._supabase = client
 
-    def _delete_row(self, row_id: str) -> None:
-        """Delete a row from the local cache and enqueue a delete op.
-
-        Args:
-            row_id: UUID primary key of the row to remove.
-        """
-        conn = self._db.connection()
-        conn.execute(
-            f"DELETE FROM {self._TABLE_NAME} WHERE id = ?", (row_id,)  # noqa: S608
-        )
-        conn.commit()
-        self._queue.enqueue(self._TABLE_NAME, row_id, "delete", {"id": row_id})
+    def _table(self, name: str) -> Optional[Any]:
+        if self._supabase is None:
+            return None
+        return self._supabase.table(name)
 
     @staticmethod
     def new_id() -> str:
-        """Generate a new UUID v4 string for use as a primary key.
-
-        Returns:
-            A UUID4 string, e.g. '550e8400-e29b-41d4-a716-446655440000'.
-        """
+        """Generate a new UUID v4 string for use as a primary key."""
         return str(uuid.uuid4())
 
 
@@ -100,30 +68,40 @@ class Repository:
 class ProfileRepository(Repository):
     """CRUD for the profiles table."""
 
-    _TABLE_NAME = "profiles"
-
     def get(self, profile_id: str) -> Optional[Profile]:
-        """Fetch a single Profile by its UUID.
-
-        Args:
-            profile_id: UUID of the profile to retrieve.
-
-        Returns:
-            A Profile dataclass, or None if not found.
-        """
-        conn = self._db.connection()
-        row = conn.execute(
-            "SELECT * FROM profiles WHERE id = ?", (profile_id,)
-        ).fetchone()
-        return self._row_to_profile(row) if row else None
+        """Fetch a single Profile by its UUID."""
+        tbl = self._table("profiles")
+        if tbl is None:
+            return None
+        response = tbl.select("*").eq("id", profile_id).execute()
+        if not response.data:
+            return None
+        return self._row_to_profile(response.data[0])
 
     def save(self, profile: Profile) -> None:
-        """Insert or update a Profile in the local cache.
-
-        Args:
-            profile: The Profile instance to persist.
-        """
-        self._save_row(self._profile_to_dict(profile))
+        """Upsert a Profile to Supabase."""
+        tbl = self._table("profiles")
+        if tbl is None:
+            return
+        payload = self._profile_to_dict(profile)
+        try:
+            tbl.upsert(payload).execute()
+        except Exception as exc:  # pylint: disable=broad-except
+            # Backward-compatibility fallback for remote schemas that have not
+            # yet added body-fat columns.
+            message = str(exc)
+            optional_cols = ("waist_cm", "neck_cm", "hips_cm", "body_fat_pct")
+            missing_optional_col = any(
+                f"'{col}'" in message and "profiles" in message for col in optional_cols
+            )
+            if not missing_optional_col:
+                raise
+            legacy_payload = {k: v for k, v in payload.items() if k not in optional_cols}
+            tbl.upsert(legacy_payload).execute()
+            logger.warning(
+                "profiles table missing body-fat columns; saved profile without %s",
+                ", ".join(optional_cols),
+            )
 
     def _profile_to_dict(self, p: Profile) -> Dict[str, Any]:
         return {
@@ -136,22 +114,30 @@ class ProfileRepository(Repository):
             "activity": p.activity,
             "goal": p.goal,
             "unit_system": p.unit_system,
+            "waist_cm": p.waist_cm,
+            "neck_cm": p.neck_cm,
+            "hips_cm": p.hips_cm,
+            "body_fat_pct": p.body_fat_pct,
             "updated_at": p.updated_at or time.time(),
         }
 
     @staticmethod
-    def _row_to_profile(row: Any) -> Profile:
+    def _row_to_profile(row: Dict[str, Any]) -> Profile:
         return Profile(
             id=row["id"],
-            email=row["email"] or "",
-            height_cm=row["height_cm"],
-            weight_kg=row["weight_kg"],
-            age=row["age"],
-            sex=row["sex"],
-            activity=row["activity"],
-            goal=row["goal"],
-            unit_system=row["unit_system"] or "metric",
-            updated_at=row["updated_at"] or 0.0,
+            email=row.get("email") or "",
+            height_cm=row.get("height_cm"),
+            weight_kg=row.get("weight_kg"),
+            age=row.get("age"),
+            sex=row.get("sex"),
+            activity=row.get("activity"),
+            goal=row.get("goal"),
+            unit_system=row.get("unit_system") or "metric",
+            waist_cm=row.get("waist_cm"),
+            neck_cm=row.get("neck_cm"),
+            hips_cm=row.get("hips_cm"),
+            body_fat_pct=row.get("body_fat_pct"),
+            updated_at=row.get("updated_at") or 0.0,
         )
 
 
@@ -162,34 +148,40 @@ class ProfileRepository(Repository):
 class GoalsRepository(Repository):
     """CRUD for the goals table."""
 
-    _TABLE_NAME = "goals"
-
     def get_for_profile(self, profile_id: str) -> Optional[Goals]:
-        """Fetch the Goals record for a given profile.
-
-        Args:
-            profile_id: UUID of the owning profile.
-
-        Returns:
-            A Goals dataclass, or None if not yet created.
-        """
-        conn = self._db.connection()
-        row = conn.execute(
-            "SELECT * FROM goals WHERE profile_id = ? ORDER BY updated_at DESC LIMIT 1",
-            (profile_id,),
-        ).fetchone()
-        return self._row_to_goals(row) if row else None
+        """Fetch the most recent Goals record for a given profile."""
+        tbl = self._table("goals")
+        if tbl is None:
+            return None
+        response = (
+            tbl.select("*")
+            .eq("profile_id", profile_id)
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return self._row_to_goals(response.data[0])
 
     def save(self, goals: Goals) -> None:
-        """Insert or update a Goals record.
-
-        Args:
-            goals: The Goals instance to persist.
-        """
-        self._save_row(self._goals_to_dict(goals))
+        """Upsert a Goals record to Supabase."""
+        tbl = self._table("goals")
+        if tbl is None:
+            return
+        payload = self._goals_to_dict(goals)
+        try:
+            tbl.upsert(payload).execute()
+        except Exception as exc:  # pylint: disable=broad-except
+            if "meal_labels" in str(exc) and "schema" in str(exc).lower():
+                payload.pop("meal_labels", None)
+                tbl.upsert(payload).execute()
+                logger.warning("goals table missing meal_labels column; saved without it")
+            else:
+                raise
 
     def _goals_to_dict(self, g: Goals) -> Dict[str, Any]:
-        return {
+        out = {
             "id": g.id,
             "profile_id": g.profile_id,
             "protein_pct": g.protein_pct,
@@ -200,19 +192,33 @@ class GoalsRepository(Repository):
             "calorie_target": g.calorie_target,
             "updated_at": g.updated_at or time.time(),
         }
+        if g.meal_labels is not None:
+            out["meal_labels"] = json.dumps(
+                {str(k): v for k, v in g.meal_labels.items()}
+            )
+        return out
 
     @staticmethod
-    def _row_to_goals(row: Any) -> Goals:
+    def _row_to_goals(row: Dict[str, Any]) -> Goals:
+        meal_labels_raw = row.get("meal_labels")
+        meal_labels: Optional[Dict[int, str]] = None
+        if meal_labels_raw:
+            try:
+                d = json.loads(meal_labels_raw)
+                meal_labels = {int(k): str(v) for k, v in d.items()}
+            except (json.JSONDecodeError, ValueError, TypeError):
+                pass
         return Goals(
             id=row["id"],
             profile_id=row["profile_id"],
-            protein_pct=row["protein_pct"],
-            carbs_pct=row["carbs_pct"],
-            fat_pct=row["fat_pct"],
-            diet_type=row["diet_type"] or "balanced",
-            meals_per_day=row["meals_per_day"] or 3,
-            calorie_target=row["calorie_target"],
-            updated_at=row["updated_at"] or 0.0,
+            protein_pct=row.get("protein_pct") or 30.0,
+            carbs_pct=row.get("carbs_pct") or 40.0,
+            fat_pct=row.get("fat_pct") or 30.0,
+            diet_type=row.get("diet_type") or "balanced",
+            meals_per_day=row.get("meals_per_day") or 3,
+            meal_labels=meal_labels,
+            calorie_target=row.get("calorie_target"),
+            updated_at=row.get("updated_at") or 0.0,
         )
 
 
@@ -223,109 +229,78 @@ class GoalsRepository(Repository):
 class FoodRepository(Repository):
     """CRUD and search for the foods table."""
 
-    _TABLE_NAME = "foods"
-
     def get(self, food_id: str) -> Optional[Food]:
-        """Fetch a single Food by its UUID.
-
-        Args:
-            food_id: UUID of the food to retrieve.
-
-        Returns:
-            A Food dataclass, or None if not found.
-        """
-        conn = self._db.connection()
-        row = conn.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
-        return self._row_to_food(row) if row else None
+        """Fetch a single Food by its UUID."""
+        tbl = self._table("foods")
+        if tbl is None:
+            return None
+        response = tbl.select("*").eq("id", food_id).execute()
+        if not response.data:
+            return None
+        return self._row_to_food(response.data[0])
 
     def get_by_barcode(self, barcode: str) -> Optional[Food]:
-        """Look up a food by its EAN-13/UPC-A barcode.
-
-        Args:
-            barcode: The barcode string to search for.
-
-        Returns:
-            The matching Food, or None if not cached locally.
-        """
-        conn = self._db.connection()
-        row = conn.execute(
-            "SELECT * FROM foods WHERE barcode = ? LIMIT 1", (barcode,)
-        ).fetchone()
-        return self._row_to_food(row) if row else None
+        """Look up a food by its EAN-13/UPC-A barcode."""
+        tbl = self._table("foods")
+        if tbl is None:
+            return None
+        response = tbl.select("*").eq("barcode", barcode).limit(1).execute()
+        if not response.data:
+            return None
+        return self._row_to_food(response.data[0])
 
     def search(self, query: str, profile_id: Optional[str] = None, limit: int = 20) -> List[Food]:
-        """Full-text name search over locally cached foods.
+        """Search foods by name/brand with optional user-scoping.
 
-        Searches both global Open Food Facts cache and user-created foods.
-
-        Args:
-            query: Search term matched against food name and brand.
-            profile_id: When provided, also includes that user's manual foods.
-            limit: Maximum results to return.
-
-        Returns:
-            List of matching Food dataclasses ordered by relevance (name match first).
+        When profile_id is provided, results are filtered client-side to only
+        include Open Food Facts entries and the user's own manual foods.
         """
-        conn = self._db.connection()
+        tbl = self._table("foods")
+        if tbl is None:
+            return []
         pattern = f"%{query}%"
+        response = (
+            tbl.select("*")
+            .or_(f"name.ilike.{pattern},brand.ilike.{pattern}")
+            .order("name")
+            .limit(100)
+            .execute()
+        )
+        foods = [self._row_to_food(r) for r in response.data]
         if profile_id:
-            rows = conn.execute(
-                """
-                SELECT * FROM foods
-                WHERE (name LIKE ? OR brand LIKE ?)
-                  AND (source = 'openfoodfacts' OR created_by = ?)
-                ORDER BY
-                    CASE WHEN name LIKE ? THEN 0 ELSE 1 END,
-                    name
-                LIMIT ?
-                """,
-                (pattern, pattern, profile_id, f"{query}%", limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT * FROM foods
-                WHERE name LIKE ? OR brand LIKE ?
-                ORDER BY
-                    CASE WHEN name LIKE ? THEN 0 ELSE 1 END,
-                    name
-                LIMIT ?
-                """,
-                (pattern, pattern, f"{query}%", limit),
-            ).fetchall()
-        return [self._row_to_food(r) for r in rows]
+            foods = [
+                f for f in foods
+                if f.source == "openfoodfacts" or f.created_by == profile_id
+            ]
+        return foods[:limit]
 
     def get_manual_foods(self, profile_id: str) -> List[Food]:
-        """Return all user-created manual foods for a profile.
-
-        Args:
-            profile_id: UUID of the owning profile.
-
-        Returns:
-            List of Food dataclasses with source='manual'.
-        """
-        conn = self._db.connection()
-        rows = conn.execute(
-            "SELECT * FROM foods WHERE source = 'manual' AND created_by = ? ORDER BY name",
-            (profile_id,),
-        ).fetchall()
-        return [self._row_to_food(r) for r in rows]
+        """Return all user-created manual foods for a profile."""
+        tbl = self._table("foods")
+        if tbl is None:
+            return []
+        response = (
+            tbl.select("*")
+            .eq("source", "manual")
+            .eq("created_by", profile_id)
+            .order("name")
+            .execute()
+        )
+        return [self._row_to_food(r) for r in response.data]
 
     def save(self, food: Food) -> None:
-        """Insert or update a Food record.
-
-        Args:
-            food: The Food instance to persist.
-        """
-        self._save_row(self._food_to_dict(food))
+        """Upsert a Food record to Supabase."""
+        tbl = self._table("foods")
+        if tbl is None:
+            return
+        tbl.upsert(self._food_to_dict(food)).execute()
 
     def delete(self, food_id: str) -> None:
-        """Remove a Food from the local cache and queue a remote delete.
-
-        Args:
-            food_id: UUID of the food to delete.
-        """
-        self._delete_row(food_id)
+        """Delete a Food record from Supabase."""
+        tbl = self._table("foods")
+        if tbl is None:
+            return
+        tbl.delete().eq("id", food_id).execute()
 
     def _food_to_dict(self, f: Food) -> Dict[str, Any]:
         n = f.nutrition
@@ -348,26 +323,26 @@ class FoodRepository(Repository):
         }
 
     @staticmethod
-    def _row_to_food(row: Any) -> Food:
+    def _row_to_food(row: Dict[str, Any]) -> Food:
         nutrition = NutritionInfo(
-            calories=row["calories"] or 0.0,
-            protein_g=row["protein_g"] or 0.0,
-            carbs_g=row["carbs_g"] or 0.0,
-            fat_g=row["fat_g"] or 0.0,
-            fiber_g=row["fiber_g"],
-            sugar_g=row["sugar_g"],
-            sodium_mg=row["sodium_mg"],
+            calories=row.get("calories") or 0.0,
+            protein_g=row.get("protein_g") or 0.0,
+            carbs_g=row.get("carbs_g") or 0.0,
+            fat_g=row.get("fat_g") or 0.0,
+            fiber_g=row.get("fiber_g"),
+            sugar_g=row.get("sugar_g"),
+            sodium_mg=row.get("sodium_mg"),
         )
         return Food(
             id=row["id"],
             name=row["name"],
-            barcode=row["barcode"],
-            brand=row["brand"],
-            source=row["source"] or "manual",
+            barcode=row.get("barcode"),
+            brand=row.get("brand"),
+            source=row.get("source") or "manual",
             nutrition=nutrition,
-            serving_size_g=row["serving_size_g"] or 100.0,
-            created_by=row["created_by"],
-            updated_at=row["updated_at"] or 0.0,
+            serving_size_g=row.get("serving_size_g") or 100.0,
+            created_by=row.get("created_by"),
+            updated_at=row.get("updated_at") or 0.0,
         )
 
 
@@ -376,54 +351,49 @@ class FoodRepository(Repository):
 # ---------------------------------------------------------------------------
 
 class MealRepository(Repository):
-    """CRUD for the meals table. MealItems are managed by MealItemRepository."""
-
-    _TABLE_NAME = "meals"
+    """CRUD for the meals table."""
 
     def get_meals_for_date(self, profile_id: str, date: str) -> List[Meal]:
-        """Fetch all meal slots for a given profile and date.
+        """Fetch all meal slots for a given profile and date."""
+        tbl = self._table("meals")
+        if tbl is None:
+            return []
+        response = (
+            tbl.select("*")
+            .eq("profile_id", profile_id)
+            .eq("date", date)
+            .order("meal_number")
+            .execute()
+        )
+        return [self._row_to_meal(r) for r in response.data]
 
-        Args:
-            profile_id: UUID of the profile.
-            date: ISO-8601 date string, e.g. '2026-03-15'.
-
-        Returns:
-            List of Meal dataclasses ordered by meal_number; items list is empty
-            (populate via MealItemRepository.get_items_for_meal if needed).
-        """
-        conn = self._db.connection()
-        rows = conn.execute(
-            """
-            SELECT * FROM meals
-            WHERE profile_id = ? AND date = ?
-            ORDER BY meal_number
-            """,
-            (profile_id, date),
-        ).fetchall()
-        return [self._row_to_meal(r) for r in rows]
+    def get_all_meals(self, profile_id: str) -> List[Meal]:
+        """Fetch every meal for a profile, ordered by date and slot."""
+        tbl = self._table("meals")
+        if tbl is None:
+            return []
+        response = (
+            tbl.select("*")
+            .eq("profile_id", profile_id)
+            .order("date")
+            .order("meal_number")
+            .execute()
+        )
+        return [self._row_to_meal(r) for r in response.data]
 
     def get_or_create(self, profile_id: str, date: str, meal_number: int, label: str) -> Meal:
-        """Return an existing meal slot or create one if it doesn't exist.
-
-        Args:
-            profile_id: UUID of the profile.
-            date: ISO-8601 date string.
-            meal_number: 1-based meal slot index.
-            label: Display label, e.g. 'Breakfast'.
-
-        Returns:
-            The existing or newly created Meal.
-        """
-        conn = self._db.connection()
-        row = conn.execute(
-            """
-            SELECT * FROM meals
-            WHERE profile_id = ? AND date = ? AND meal_number = ?
-            """,
-            (profile_id, date, meal_number),
-        ).fetchone()
-        if row:
-            return self._row_to_meal(row)
+        """Return an existing meal slot or create one if it doesn't exist."""
+        tbl = self._table("meals")
+        if tbl is not None:
+            response = (
+                tbl.select("*")
+                .eq("profile_id", profile_id)
+                .eq("date", date)
+                .eq("meal_number", meal_number)
+                .execute()
+            )
+            if response.data:
+                return self._row_to_meal(response.data[0])
         meal = Meal(
             id=self.new_id(),
             profile_id=profile_id,
@@ -436,22 +406,18 @@ class MealRepository(Repository):
         return meal
 
     def save(self, meal: Meal) -> None:
-        """Insert or update a Meal record.
-
-        Args:
-            meal: The Meal instance to persist.
-        """
-        self._save_row(self._meal_to_dict(meal))
+        """Upsert a Meal record to Supabase."""
+        tbl = self._table("meals")
+        if tbl is None:
+            return
+        tbl.upsert(self._meal_to_dict(meal)).execute()
 
     def delete(self, meal_id: str) -> None:
-        """Remove a Meal and cascade-delete its MealItems.
-
-        SQLite enforces the cascade via the foreign key constraint.
-
-        Args:
-            meal_id: UUID of the meal to delete.
-        """
-        self._delete_row(meal_id)
+        """Delete a Meal from Supabase (cascade to meal_items via FK)."""
+        tbl = self._table("meals")
+        if tbl is None:
+            return
+        tbl.delete().eq("id", meal_id).execute()
 
     def _meal_to_dict(self, m: Meal) -> Dict[str, Any]:
         return {
@@ -464,14 +430,14 @@ class MealRepository(Repository):
         }
 
     @staticmethod
-    def _row_to_meal(row: Any) -> Meal:
+    def _row_to_meal(row: Dict[str, Any]) -> Meal:
         return Meal(
             id=row["id"],
             profile_id=row["profile_id"],
             date=row["date"],
             meal_number=row["meal_number"],
-            label=row["label"] or "",
-            updated_at=row["updated_at"] or 0.0,
+            label=row.get("label") or "",
+            updated_at=row.get("updated_at") or 0.0,
         )
 
 
@@ -482,49 +448,36 @@ class MealRepository(Repository):
 class MealItemRepository(Repository):
     """CRUD for the meal_items table with denormalised food data."""
 
-    _TABLE_NAME = "meal_items"
+    _ITEM_SELECT = (
+        "id, meal_id, food_id, quantity_g, updated_at, "
+        "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
+    )
 
     def get_items_for_meal(self, meal_id: str) -> List[MealItem]:
-        """Fetch all food entries for a given meal, with nutrition joined.
-
-        Args:
-            meal_id: UUID of the parent Meal.
-
-        Returns:
-            List of MealItem dataclasses with food_name and nutrition_per_100g populated.
-        """
-        conn = self._db.connection()
-        rows = conn.execute(
-            """
-            SELECT
-                mi.id, mi.meal_id, mi.food_id, mi.quantity_g, mi.updated_at,
-                f.name   AS food_name,
-                f.calories, f.protein_g, f.carbs_g, f.fat_g,
-                f.fiber_g, f.sugar_g, f.sodium_mg
-            FROM meal_items mi
-            JOIN foods f ON f.id = mi.food_id
-            WHERE mi.meal_id = ?
-            ORDER BY mi.rowid
-            """,
-            (meal_id,),
-        ).fetchall()
-        return [self._row_to_item(r) for r in rows]
+        """Fetch all food entries for a meal, with nutrition from a FK join."""
+        tbl = self._table("meal_items")
+        if tbl is None:
+            return []
+        response = (
+            tbl.select(self._ITEM_SELECT)
+            .eq("meal_id", meal_id)
+            .execute()
+        )
+        return [self._row_to_item(r) for r in response.data]
 
     def save(self, item: MealItem) -> None:
-        """Insert or update a MealItem.
-
-        Args:
-            item: The MealItem to persist.
-        """
-        self._save_row(self._item_to_dict(item))
+        """Upsert a MealItem to Supabase."""
+        tbl = self._table("meal_items")
+        if tbl is None:
+            return
+        tbl.upsert(self._item_to_dict(item)).execute()
 
     def delete(self, item_id: str) -> None:
-        """Remove a MealItem from the local cache and queue a remote delete.
-
-        Args:
-            item_id: UUID of the MealItem to delete.
-        """
-        self._delete_row(item_id)
+        """Delete a MealItem from Supabase."""
+        tbl = self._table("meal_items")
+        if tbl is None:
+            return
+        tbl.delete().eq("id", item_id).execute()
 
     def _item_to_dict(self, i: MealItem) -> Dict[str, Any]:
         return {
@@ -536,23 +489,24 @@ class MealItemRepository(Repository):
         }
 
     @staticmethod
-    def _row_to_item(row: Any) -> MealItem:
+    def _row_to_item(row: Dict[str, Any]) -> MealItem:
+        food_data = row.get("foods") or {}
         nutrition = NutritionInfo(
-            calories=row["calories"] or 0.0,
-            protein_g=row["protein_g"] or 0.0,
-            carbs_g=row["carbs_g"] or 0.0,
-            fat_g=row["fat_g"] or 0.0,
-            fiber_g=row["fiber_g"],
-            sugar_g=row["sugar_g"],
-            sodium_mg=row["sodium_mg"],
+            calories=food_data.get("calories") or 0.0,
+            protein_g=food_data.get("protein_g") or 0.0,
+            carbs_g=food_data.get("carbs_g") or 0.0,
+            fat_g=food_data.get("fat_g") or 0.0,
+            fiber_g=food_data.get("fiber_g"),
+            sugar_g=food_data.get("sugar_g"),
+            sodium_mg=food_data.get("sodium_mg"),
         )
         return MealItem(
             id=row["id"],
             meal_id=row["meal_id"],
             food_id=row["food_id"],
             quantity_g=row["quantity_g"],
-            updated_at=row["updated_at"] or 0.0,
-            food_name=row["food_name"] or "",
+            updated_at=row.get("updated_at") or 0.0,
+            food_name=food_data.get("name") or "",
             nutrition_per_100g=nutrition,
         )
 
@@ -564,134 +518,109 @@ class MealItemRepository(Repository):
 class RecipeRepository(Repository):
     """CRUD for recipes and their ingredients."""
 
-    _TABLE_NAME = "recipes"
+    _INGREDIENT_SELECT = (
+        "id, recipe_id, food_id, quantity_g, updated_at, "
+        "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
+    )
 
     def get_recipes_for_profile(self, profile_id: str) -> List[Recipe]:
-        """Fetch all recipes belonging to a profile.
-
-        Args:
-            profile_id: UUID of the owning profile.
-
-        Returns:
-            List of Recipe dataclasses with ingredients populated.
-        """
-        conn = self._db.connection()
-        rows = conn.execute(
-            "SELECT * FROM recipes WHERE profile_id = ? ORDER BY name",
-            (profile_id,),
-        ).fetchall()
-        recipes = [self._row_to_recipe(r) for r in rows]
+        """Fetch all recipes belonging to a profile, with ingredients."""
+        tbl = self._table("recipes")
+        if tbl is None:
+            return []
+        response = (
+            tbl.select("*")
+            .eq("profile_id", profile_id)
+            .order("name")
+            .execute()
+        )
+        recipes = [self._row_to_recipe(r) for r in response.data]
         for recipe in recipes:
-            recipe.ingredients = self._load_ingredients(conn, recipe.id)
+            recipe.ingredients = self._load_ingredients(recipe.id)
         return recipes
 
     def get(self, recipe_id: str) -> Optional[Recipe]:
-        """Fetch a single Recipe with all its ingredients.
-
-        Args:
-            recipe_id: UUID of the recipe.
-
-        Returns:
-            A Recipe dataclass, or None if not found.
-        """
-        conn = self._db.connection()
-        row = conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
-        if not row:
+        """Fetch a single Recipe with all its ingredients."""
+        tbl = self._table("recipes")
+        if tbl is None:
             return None
-        recipe = self._row_to_recipe(row)
-        recipe.ingredients = self._load_ingredients(conn, recipe.id)
+        response = tbl.select("*").eq("id", recipe_id).execute()
+        if not response.data:
+            return None
+        recipe = self._row_to_recipe(response.data[0])
+        recipe.ingredients = self._load_ingredients(recipe.id)
         return recipe
 
     def save(self, recipe: Recipe) -> None:
-        """Insert or update a Recipe (does not save ingredients).
-
-        Args:
-            recipe: The Recipe to persist.
-        """
-        self._save_row(self._recipe_to_dict(recipe))
+        """Upsert a Recipe to Supabase (does not save ingredients)."""
+        tbl = self._table("recipes")
+        if tbl is None:
+            return
+        tbl.upsert(self._recipe_to_dict(recipe)).execute()
 
     def delete(self, recipe_id: str) -> None:
-        """Remove a Recipe and cascade-delete its ingredients.
-
-        Args:
-            recipe_id: UUID of the recipe to delete.
-        """
-        self._delete_row(recipe_id)
+        """Delete a Recipe from Supabase (cascade to ingredients via FK)."""
+        tbl = self._table("recipes")
+        if tbl is None:
+            return
+        tbl.delete().eq("id", recipe_id).execute()
 
     def save_ingredient(self, ingredient: RecipeIngredient) -> None:
-        """Insert or update a RecipeIngredient.
-
-        Args:
-            ingredient: The RecipeIngredient to persist.
-        """
-        row = {
+        """Upsert a RecipeIngredient to Supabase."""
+        tbl = self._table("recipe_ingredients")
+        if tbl is None:
+            return
+        data = {
             "id": ingredient.id,
             "recipe_id": ingredient.recipe_id,
             "food_id": ingredient.food_id,
             "quantity_g": ingredient.quantity_g,
             "updated_at": ingredient.updated_at or time.time(),
         }
-        conn = self._db.connection()
-        cols = ", ".join(row.keys())
-        placeholders = ", ".join("?" * len(row))
-        conn.execute(
-            f"INSERT OR REPLACE INTO recipe_ingredients ({cols}) VALUES ({placeholders})",  # noqa: S608
-            list(row.values()),
-        )
-        conn.commit()
-        self._queue.enqueue("recipe_ingredients", row["id"], "insert", row)
+        tbl.upsert(data).execute()
 
     def delete_ingredient(self, ingredient_id: str) -> None:
-        """Remove a single RecipeIngredient.
-
-        Args:
-            ingredient_id: UUID of the ingredient to delete.
-        """
-        conn = self._db.connection()
-        conn.execute("DELETE FROM recipe_ingredients WHERE id = ?", (ingredient_id,))
-        conn.commit()
-        self._queue.enqueue("recipe_ingredients", ingredient_id, "delete", {"id": ingredient_id})
+        """Delete a RecipeIngredient from Supabase."""
+        tbl = self._table("recipe_ingredients")
+        if tbl is None:
+            return
+        tbl.delete().eq("id", ingredient_id).execute()
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
+    def _load_ingredients(self, recipe_id: str) -> List[RecipeIngredient]:
+        tbl = self._table("recipe_ingredients")
+        if tbl is None:
+            return []
+        response = (
+            tbl.select(self._INGREDIENT_SELECT)
+            .eq("recipe_id", recipe_id)
+            .execute()
+        )
+        return [self._row_to_ingredient(r) for r in response.data]
+
     @staticmethod
-    def _load_ingredients(conn: Any, recipe_id: str) -> List[RecipeIngredient]:
-        rows = conn.execute(
-            """
-            SELECT
-                ri.id, ri.recipe_id, ri.food_id, ri.quantity_g, ri.updated_at,
-                f.name   AS food_name,
-                f.calories, f.protein_g, f.carbs_g, f.fat_g,
-                f.fiber_g, f.sugar_g, f.sodium_mg
-            FROM recipe_ingredients ri
-            JOIN foods f ON f.id = ri.food_id
-            WHERE ri.recipe_id = ?
-            ORDER BY ri.rowid
-            """,
-            (recipe_id,),
-        ).fetchall()
-        return [
-            RecipeIngredient(
-                id=r["id"],
-                recipe_id=r["recipe_id"],
-                food_id=r["food_id"],
-                quantity_g=r["quantity_g"],
-                updated_at=r["updated_at"] or 0.0,
-                food_name=r["food_name"] or "",
-                nutrition_per_100g=NutritionInfo(
-                    calories=r["calories"] or 0.0,
-                    protein_g=r["protein_g"] or 0.0,
-                    carbs_g=r["carbs_g"] or 0.0,
-                    fat_g=r["fat_g"] or 0.0,
-                    fiber_g=r["fiber_g"],
-                    sugar_g=r["sugar_g"],
-                    sodium_mg=r["sodium_mg"],
-                ),
-            )
-            for r in rows
-        ]
+    def _row_to_ingredient(row: Dict[str, Any]) -> RecipeIngredient:
+        food_data = row.get("foods") or {}
+        return RecipeIngredient(
+            id=row["id"],
+            recipe_id=row["recipe_id"],
+            food_id=row["food_id"],
+            quantity_g=row["quantity_g"],
+            updated_at=row.get("updated_at") or 0.0,
+            food_name=food_data.get("name") or "",
+            nutrition_per_100g=NutritionInfo(
+                calories=food_data.get("calories") or 0.0,
+                protein_g=food_data.get("protein_g") or 0.0,
+                carbs_g=food_data.get("carbs_g") or 0.0,
+                fat_g=food_data.get("fat_g") or 0.0,
+                fiber_g=food_data.get("fiber_g"),
+                sugar_g=food_data.get("sugar_g"),
+                sodium_mg=food_data.get("sodium_mg"),
+            ),
+        )
 
     def _recipe_to_dict(self, r: Recipe) -> Dict[str, Any]:
         return {
@@ -703,11 +632,11 @@ class RecipeRepository(Repository):
         }
 
     @staticmethod
-    def _row_to_recipe(row: Any) -> Recipe:
+    def _row_to_recipe(row: Dict[str, Any]) -> Recipe:
         return Recipe(
             id=row["id"],
             profile_id=row["profile_id"],
             name=row["name"],
-            servings=row["servings"] or 1,
-            updated_at=row["updated_at"] or 0.0,
+            servings=row.get("servings") or 1,
+            updated_at=row.get("updated_at") or 0.0,
         )

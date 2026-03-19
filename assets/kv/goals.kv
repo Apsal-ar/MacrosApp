@@ -1,12 +1,98 @@
-#:import DIET_PRESET_LABELS utils.constants.DIET_PRESET_LABELS
+<EditMacrosSheet>:
+    background: " "
+    background_color: 0, 0, 0, 0
+    auto_dismiss: False
+
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: app.theme_cls.backgroundColor
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            spacing: "4dp"
+            padding: ["4dp", "0dp", "16dp", "0dp"]
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.dismiss()
+
+            MDLabel:
+                text: "Edit macronutrients"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "left"
+                valign: "center"
+
+        MDBoxLayout:
+            orientation: "vertical"
+            padding: ["16dp", "20dp", "16dp", "24dp"]
+            spacing: "16dp"
+
+            MDCard:
+                orientation: "vertical"
+                padding: "16dp"
+                spacing: "8dp"
+                radius: [dp(12)]
+                elevation: 0
+                size_hint_y: None
+                height: self.minimum_height
+
+                MDTextField:
+                    id: protein_input
+                    hint_text: "Protein (%)"
+                    input_filter: "float"
+
+                MDTextField:
+                    id: fat_input
+                    hint_text: "Fat (%)"
+                    input_filter: "float"
+
+                MDTextField:
+                    id: carbs_input
+                    hint_text: "Carbohydrates (%)"
+                    input_filter: "float"
+
+                MDLabel:
+                    text: "Total must equal 100%"
+                    font_style: "Body"
+                    role: "small"
+                    theme_text_color: "Secondary"
+
+            Widget:
+
+            MDButton:
+                style: "filled"
+                size_hint_x: 1
+                on_release: root.save_changes()
+
+                MDButtonText:
+                    text: "Save macronutrients"
 
 <GoalsScreen>:
     MDBoxLayout:
         orientation: "vertical"
 
-        MDTopAppBar:
-            title: "My Goals"
-            type: "small"
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            padding: ["16dp", "0dp", "16dp", "0dp"]
+
+            MDLabel:
+                text: "Goals"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "center"
+                valign: "center"
 
         MDScrollView:
             MDBoxLayout:
@@ -16,20 +102,19 @@
                 size_hint_y: None
                 height: self.minimum_height
 
-                # ── Calorie target (read-only) ─────────────────────────
                 MDCard:
                     padding: "16dp"
                     radius: [dp(12)]
                     elevation: 1
                     size_hint_y: None
-                    height: "72dp"
+                    height: "88dp"
 
                     MDBoxLayout:
                         orientation: "vertical"
                         spacing: "4dp"
 
                         MDLabel:
-                            text: "Daily Calorie Target"
+                            text: "Daily calorie target"
                             font_style: "Label"
                             role: "medium"
                             theme_text_color: "Secondary"
@@ -40,147 +125,16 @@
                             font_style: "Title"
                             role: "large"
 
-                # ── Diet preset picker ─────────────────────────────────
-                MDLabel:
-                    text: "Diet Preset"
-                    font_style: "Title"
-                    role: "small"
-                    size_hint_y: None
-                    height: "28dp"
-
-                MDDropDownItem:
-                    id: diet_dropdown
-                    size_hint_y: None
-                    height: "48dp"
-                    on_release: root.open_diet_menu()
-
-                    MDDropDownItemText:
-                        id: diet_text
-                        text: "Balanced"
-
-                # ── Macro sliders ──────────────────────────────────────
-                MDLabel:
-                    text: "Macro Split"
-                    font_style: "Title"
-                    role: "small"
-                    size_hint_y: None
-                    height: "28dp"
-
-                # Protein
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: "24dp"
-
-                    MDLabel:
-                        id: protein_label
-                        text: "Protein: 30%"
-                        font_style: "Body"
-                        role: "medium"
-
-                MDSlider:
-                    id: protein_slider
-                    min: 5
-                    max: 70
-                    value: 30
-                    step: 1
-                    size_hint_y: None
-                    height: "40dp"
-                    on_value: root.on_protein_slider(self.value)
-
-                # Carbs
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: "24dp"
-
-                    MDLabel:
-                        id: carbs_label
-                        text: "Carbs: 40%"
-                        font_style: "Body"
-                        role: "medium"
-
-                MDSlider:
-                    id: carbs_slider
-                    min: 5
-                    max: 75
-                    value: 40
-                    step: 1
-                    size_hint_y: None
-                    height: "40dp"
-                    on_value: root.on_carbs_slider(self.value)
-
-                # Fat
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: "24dp"
-
-                    MDLabel:
-                        id: fat_label
-                        text: "Fat: 30%"
-                        font_style: "Body"
-                        role: "medium"
-
-                MDSlider:
-                    id: fat_slider
-                    min: 5
-                    max: 75
-                    value: 30
-                    step: 1
-                    size_hint_y: None
-                    height: "40dp"
-                    on_value: root.on_fat_slider(self.value)
-
-                # Gram targets display
-                MDLabel:
-                    id: grams_label
-                    text: "Protein: —g  |  Carbs: —g  |  Fat: —g"
-                    font_style: "Body"
-                    role: "medium"
-                    theme_text_color: "Secondary"
-                    halign: "center"
-                    size_hint_y: None
-                    height: "28dp"
-
-                # ── Pie chart ──────────────────────────────────────────
                 MacroPieChart:
                     id: pie_chart
                     protein_pct: root.protein_pct
                     carbs_pct: root.carbs_pct
                     fat_pct: root.fat_pct
 
-                # ── Meals per day ──────────────────────────────────────
-                MDLabel:
-                    text: "Meals per Day"
-                    font_style: "Title"
-                    role: "small"
-                    size_hint_y: None
-                    height: "28dp"
-
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: "48dp"
-                    spacing: "8dp"
-
-                    MDSlider:
-                        id: meals_slider
-                        min: 1
-                        max: 6
-                        value: 3
-                        step: 1
-                        size_hint_x: 1
-
-                    MDLabel:
-                        id: meals_count_label
-                        text: str(int(meals_slider.value))
-                        size_hint_x: None
-                        width: "32dp"
-                        halign: "center"
-
-                # ── Save button ────────────────────────────────────────
                 MDButton:
                     style: "filled"
                     size_hint_x: 1
-                    height: "52dp"
-                    on_release: root.save_goals()
+                    on_release: root.open_macro_editor()
 
                     MDButtonText:
-                        text: "Save Goals"
+                        text: "Edit macronutrients"

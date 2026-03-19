@@ -10,7 +10,13 @@ from kivy.lang import Builder
 from kivy.properties import NumericProperty, StringProperty
 from kivymd.uix.boxlayout import MDBoxLayout
 
-from utils.constants import PROGRESS_COLOUR_OK, PROGRESS_COLOUR_WARN
+from utils.constants import (
+    PROGRESS_COLOUR_OK,
+    PROGRESS_COLOUR_WARN,
+    RGBA_CARBS,
+    RGBA_FAT,
+    RGBA_PROTEIN,
+)
 
 Builder.load_string("""
 <MacroProgressBar>:
@@ -76,14 +82,12 @@ class MacroProgressBar(MDBoxLayout):
 
     @property
     def _bar_color(self) -> list:
-        """RGBA colour based on consumption thresholds.
-
-        Returns:
-            [R, G, B, A] list — green, amber, or red.
-        """
-        pct = self._pct
-        if pct < PROGRESS_COLOUR_OK:
-            return [0.2, 0.75, 0.4, 1]     # green
-        if pct <= PROGRESS_COLOUR_WARN:
-            return [1.0, 0.65, 0.0, 1]     # amber
-        return [0.9, 0.2, 0.2, 1]          # red
+        """Macro-specific bar colour (protein/carbs/fat from app palette)."""
+        label_lower = (self.label or "").lower()
+        if "protein" in label_lower:
+            return RGBA_PROTEIN
+        if "carb" in label_lower:
+            return RGBA_CARBS
+        if "fat" in label_lower:
+            return RGBA_FAT
+        return RGBA_PROTEIN  # fallback

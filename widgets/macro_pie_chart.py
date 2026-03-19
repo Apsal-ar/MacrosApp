@@ -16,6 +16,8 @@ from kivy.lang import Builder
 from kivy.properties import NumericProperty
 from kivymd.uix.boxlayout import MDBoxLayout
 
+from utils.constants import RGBA_CARBS, RGBA_FAT, RGBA_PROTEIN
+
 Builder.load_string("""
 <MacroPieChart>:
     orientation: "vertical"
@@ -96,11 +98,11 @@ Builder.load_string("""
             theme_text_color: "Custom"
 """)
 
-# Segment colours: protein, carbs, fat
+# Segment colours: protein, carbs, fat (from app palette)
 _COLOURS: List[tuple] = [
-    (0.29, 0.56, 0.89, 1),   # blue — protein
-    (0.36, 0.73, 0.45, 1),   # green — carbs
-    (0.96, 0.62, 0.26, 1),   # orange — fat
+    tuple(RGBA_PROTEIN),   # protein #155DFC
+    tuple(RGBA_CARBS),     # carbs #EC253F
+    tuple(RGBA_FAT),       # fat #FFB93B
 ]
 _LABELS = ["Protein", "Carbs", "Fat"]
 
