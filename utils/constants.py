@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # App color palette (hex and 0–1 RGBA)
@@ -137,6 +137,32 @@ DEFAULT_MEAL_LABELS: Dict[int, str] = {
     9: "Snack 4",
     10: "Snack 5",
 }
+
+# ---------------------------------------------------------------------------
+# BMI ranges (WHO classification)
+# ---------------------------------------------------------------------------
+# List of (range_display, label, min_bmi, max_bmi) — max_bmi is exclusive except last
+BMI_RANGES: List[tuple] = [
+    ("< 16", "Very severely underweight", 0, 16),
+    ("16 - 16.99", "Severely underweight", 16, 17),
+    ("17 - 18.49", "Underweight", 17, 18.5),
+    ("18.5 - 24.99", "Normal (healthy weight)", 18.5, 25),
+    ("25 - 29.99", "Overweight", 25, 30),
+    ("30 - 34.99", "Obese Class I (Moderately obese)", 30, 35),
+    ("35 - 39.99", "Obese Class II (Severely obese)", 35, 40),
+    ("> 40", "Obese Class III (Very severely obese)", 40, 999),
+]
+
+
+def get_bmi_category(bmi: float) -> Optional[str]:
+    """Return the classification label for a given BMI, or None if invalid."""
+    if bmi <= 0:
+        return None
+    for _range_str, label, lo, hi in BMI_RANGES:
+        if lo <= bmi < hi:
+            return label
+    return BMI_RANGES[-1][1]  # fallback: highest category
+
 
 # ---------------------------------------------------------------------------
 # Progress bar colour thresholds (% of target consumed)

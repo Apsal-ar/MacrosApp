@@ -238,34 +238,49 @@
                     elevation: 2
                     padding: "0dp"
 
-                    MDBoxLayout:
+                    MDCard:
                         size_hint_y: None
                         height: "72dp"
-                        padding: ["16dp", "12dp", "16dp", "12dp"]
-                        spacing: "12dp"
+                        padding: "0dp"
+                        elevation: 0
+                        radius: [0]
+                        on_release: root.open_bmi_info()
 
                         MDBoxLayout:
-                            orientation: "vertical"
-                            spacing: "2dp"
-                            size_hint_x: 1
+                            padding: ["16dp", "12dp", "16dp", "12dp"]
+                            spacing: "12dp"
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "2dp"
+                                size_hint_x: 1
+
+                                MDLabel:
+                                    text: "Body Mass Index"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_text_color: "Secondary"
+                                    size_hint_y: None
+                                    height: "20dp"
+
+                                MDLabel:
+                                    id: bmi_value
+                                    text: "—"
+                                    font_style: "Title"
+                                    role: "small"
+                                    size_hint_y: None
+                                    height: "28dp"
+                                    theme_text_color: "Custom"
+                                    text_color: app.theme_cls.primaryColor
 
                             MDLabel:
-                                text: "Body Mass Index"
-                                font_style: "Body"
-                                role: "small"
+                                text: "›"
+                                font_size: "22sp"
+                                size_hint_x: None
+                                width: "20dp"
+                                halign: "right"
                                 theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
-
-                            MDLabel:
-                                id: bmi_value
-                                text: "—"
-                                font_style: "Title"
-                                role: "small"
-                                size_hint_y: None
-                                height: "28dp"
-                                theme_text_color: "Custom"
-                                text_color: app.theme_cls.primaryColor
+                                pos_hint: {"center_y": 0.5}
 
                     MDDivider:
 

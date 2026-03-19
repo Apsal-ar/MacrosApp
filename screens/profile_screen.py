@@ -53,10 +53,12 @@ from services.macro_calculator import MacroCalculator
 from services.repository import GoalsRepository, ProfileRepository
 from models.user import Goals, Profile
 from utils.constants import (
-    DEFAULT_MEAL_LABELS,
     ACTIVITY_DESCRIPTIONS,
     ACTIVITY_KEY_MIGRATION,
     ACTIVITY_LABELS,
+    BMI_RANGES,
+    DEFAULT_MEAL_LABELS,
+    get_bmi_category,
     GOAL_DESCRIPTIONS,
     GOAL_KEY_MIGRATION,
     GOAL_LABELS,
@@ -226,7 +228,8 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
-                            size_hint_x: 0.45
+                            size_hint_x: None
+                            width: "140dp"
                             text_size: self.size
                             shorten: True
                             shorten_from: "left"
@@ -244,7 +247,8 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
-                            size_hint_x: 0.45
+                            size_hint_x: None
+                            width: "140dp"
                             text_size: self.size
                             shorten: True
                             shorten_from: "left"
@@ -262,7 +266,8 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
-                            size_hint_x: 0.45
+                            size_hint_x: None
+                            width: "140dp"
                             text_size: self.size
                             shorten: True
                             shorten_from: "left"
@@ -280,7 +285,8 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
-                            size_hint_x: 0.45
+                            size_hint_x: None
+                            width: "140dp"
                             text_size: self.size
                             shorten: True
                             shorten_from: "left"
@@ -298,7 +304,8 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
-                            size_hint_x: 0.45
+                            size_hint_x: None
+                            width: "140dp"
                             text_size: self.size
                             shorten: True
                             shorten_from: "left"
@@ -316,7 +323,8 @@ _KV = """
                             theme_text_color: "Custom"
                             text_color: app.theme_cls.primaryColor
                             halign: "right"
-                            size_hint_x: 0.45
+                            size_hint_x: None
+                            width: "140dp"
                             text_size: self.size
                             shorten: True
                             shorten_from: "left"
@@ -458,6 +466,103 @@ _KV = """
                 MDButtonText:
                     text: "Calculate"
 
+# ── BMI ranges info sheet ────────────────────────────────────────────────
+<BMISheet>:
+    background: " "
+    background_color: 0, 0, 0, 0
+    auto_dismiss: False
+
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: app.theme_cls.backgroundColor
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            spacing: "4dp"
+            padding: ["4dp", "0dp", "16dp", "0dp"]
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.dismiss()
+
+            MDLabel:
+                text: "Body Mass Index (BMI)"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "center"
+                valign: "center"
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["16dp", "16dp", "16dp", "24dp"]
+                spacing: "12dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                MDBoxLayout:
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: "120dp"
+                    padding: ["0dp", "8dp", "0dp", "8dp"]
+
+                    MDLabel:
+                        id: bmi_value_large
+                        text: "—"
+                        font_style: "Display"
+                        role: "small"
+                        halign: "center"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        size_hint_y: None
+                        height: "48dp"
+
+                    MDLabel:
+                        id: bmi_status
+                        text: ""
+                        font_style: "Title"
+                        role: "medium"
+                        halign: "center"
+                        theme_text_color: "Custom"
+                        text_color: app.theme_cls.primaryColor
+                        size_hint_y: None
+                        height: "28dp"
+
+                MDCard:
+                    id: bmi_ranges_container
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    radius: [dp(12)]
+                    padding: "0dp"
+                    elevation: 0
+                    md_bg_color: app.theme_cls.surfaceContainerHighColor
+
+                MDCard:
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    radius: [dp(12)]
+                    padding: ["16dp", "12dp", "16dp", "12dp"]
+                    elevation: 0
+                    md_bg_color: app.theme_cls.surfaceContainerHighColor
+
+                    MDLabel:
+                        text: "BMI is particularly inaccurate for people who are very fit or athletic, as their high muscle mass can classify them in the overweight category by BMI."
+                        font_style: "Body"
+                        role: "small"
+                        theme_text_color: "Secondary"
+                        halign: "center"
+                        size_hint_y: None
+                        height: "88dp"
+
 # ── Meals customization sheet ────────────────────────────────────────────
 <MealsSheet>:
     background: " "
@@ -564,7 +669,7 @@ _DRUM_KV = """
             orientation: "vertical"
             size_hint_x: 1
             size_hint_y: None
-            height: "356dp"
+            height: "428dp"
             pos_hint: {"x": 0, "y": 0}
             radius: [dp(16), dp(16), 0, 0]
             padding: "0dp"
@@ -582,7 +687,8 @@ _DRUM_KV = """
 
             MDBoxLayout:
                 id: picker_slot
-                size_hint: 1, 1
+                size_hint_y: None
+                height: "308dp"
                 padding: ["0dp", "0dp", "0dp", "0dp"]
 
             MDBoxLayout:
@@ -593,14 +699,20 @@ _DRUM_KV = """
 
                 MDButton:
                     style: "text"
-                    size_hint_x: 1
+                    size_hint_x: None
+                    width: "80dp"
                     on_release: root.dismiss()
                     MDButtonText:
                         text: "Cancel"
 
+                Widget:
+                    size_hint_x: 1
+
                 MDButton:
                     style: "filled"
-                    size_hint_x: 1
+                    size_hint_x: None
+                    width: "100dp"
+                    radius: [dp(12), dp(12), dp(12), dp(12)]
                     on_release: root._confirm()
                     MDButtonText:
                         text: "Ok"
@@ -618,7 +730,7 @@ _DRUM_KV = """
             orientation: "vertical"
             size_hint_x: 1
             size_hint_y: None
-            height: "356dp"
+            height: "428dp"
             pos_hint: {"x": 0, "y": 0}
             radius: [dp(16), dp(16), 0, 0]
             padding: "0dp"
@@ -635,13 +747,14 @@ _DRUM_KV = """
                 font_style: "Title"
                 bold: True
 
-            # Drum roll lives here
+            # Drum roll — fixed 308dp so highlight aligns with centered value
             MDBoxLayout:
                 id: picker_slot
-                size_hint: 1, 1
+                size_hint_y: None
+                height: "308dp"
                 padding: ["0dp", "0dp", "0dp", "0dp"]
 
-            # Cancel / OK row
+            # Cancel / OK row — Cancel left, Ok right (match reference image)
             MDBoxLayout:
                 size_hint_y: None
                 height: "68dp"
@@ -650,14 +763,20 @@ _DRUM_KV = """
 
                 MDButton:
                     style: "text"
-                    size_hint_x: 1
+                    size_hint_x: None
+                    width: "80dp"
                     on_release: root.dismiss()
                     MDButtonText:
                         text: "Cancel"
 
+                Widget:
+                    size_hint_x: 1
+
                 MDButton:
                     style: "filled"
-                    size_hint_x: 1
+                    size_hint_x: None
+                    width: "100dp"
+                    radius: [dp(12), dp(12), dp(12), dp(12)]
                     on_release: root._confirm()
                     MDButtonText:
                         text: "Ok"
@@ -754,6 +873,7 @@ class DrumRollPicker(FloatLayout):
         for v in range(self._min, self._max + 1):
             lbl = Label(
                 text=str(v),
+                markup=True,
                 size_hint_y=None,
                 height=item_h,
                 halign="center",
@@ -771,11 +891,11 @@ class DrumRollPicker(FloatLayout):
         scroll.bind(scroll_y=self._on_scroll_changed)
         scroll.bind(on_scroll_stop=self._on_scroll_stopped)
 
-        # Highlight strip — fixed overlay centred in the FloatLayout
+        # Highlight strip — centered bar, ~85% width, rounded corners
         hl = Widget(
-            size_hint=(1, None),
+            size_hint=(0.85, None),
             height=item_h,
-            pos_hint={"x": 0, "center_y": 0.5},
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
         try:
             app = MDApp.get_running_app()
@@ -783,8 +903,8 @@ class DrumRollPicker(FloatLayout):
         except Exception:  # noqa: BLE001
             r, g, b = 0.15, 0.5, 0.45
         with hl.canvas.before:
-            Color(r, g, b, 0.30)
-            rr = RoundedRectangle(pos=hl.pos, size=hl.size, radius=[dp(8)])
+            Color(r, g, b, 0.35)
+            rr = RoundedRectangle(pos=hl.pos, size=hl.size, radius=[dp(10)])
         hl.bind(
             pos=lambda w, p: setattr(rr, "pos", p),
             size=lambda w, s: setattr(rr, "size", s),
@@ -794,8 +914,9 @@ class DrumRollPicker(FloatLayout):
         self.add_widget(hl)
 
         self._update_labels(self._selected)
+        # Delay until layout complete so scroll position and highlight align
         Clock.schedule_once(
-            lambda dt: self._set_scroll(self._selected, animate=False), 0.05
+            lambda dt: self._set_scroll(self._selected, animate=False), 0.12
         )
 
     # ------------------------------------------------------------------
@@ -803,8 +924,27 @@ class DrumRollPicker(FloatLayout):
     # ------------------------------------------------------------------
 
     def _scroll_y_for(self, value: int) -> float:
-        n = self._max - self._min
-        return (1.0 - (value - self._min) / n) if n > 0 else 1.0
+        """Scroll so value's row is centered in the viewport.
+
+        Kivy: scroll_y=0 shows top of content, scroll_y=1 shows bottom.
+        viewport_top = scroll_y * (content_h - viewport_h)
+        """
+        half = self.VISIBLE // 2
+        n = self._max - self._min + 1
+        if n <= 0:
+            return 0.0
+        # Center of value's row (from top of content) = (half + (v - min) + 0.5) * item_h
+        # We want viewport_top = center - viewport_h/2
+        viewport_top = (
+            (half + (value - self._min) + 0.5) * self.ITEM_H
+            - (self.VISIBLE * self.ITEM_H) / 2.0
+        )
+        content_h = (n + 2 * half) * self.ITEM_H
+        viewport_h = self.VISIBLE * self.ITEM_H
+        max_scroll = content_h - viewport_h
+        if max_scroll <= 0:
+            return 0.0
+        return max(0.0, min(1.0, viewport_top / max_scroll))
 
     def _set_scroll(self, value: int, animate: bool = True) -> None:
         if self._scroll is None:
@@ -820,8 +960,15 @@ class DrumRollPicker(FloatLayout):
         self._update_labels(value)
 
     def _on_scroll_changed(self, instance: Any, scroll_y: float) -> None:
-        n = self._max - self._min
-        val = round(self._min + (1.0 - scroll_y) * n)
+        # scroll_y=0 -> top of content, scroll_y=1 -> bottom
+        n = self._max - self._min + 1
+        content_h = (n + 2 * (self.VISIBLE // 2)) * self.ITEM_H
+        viewport_h = self.VISIBLE * self.ITEM_H
+        max_scroll = max(1, content_h - viewport_h)
+        viewport_top = scroll_y * max_scroll
+        center = viewport_top + viewport_h / 2.0
+        half = self.VISIBLE // 2
+        val = round(self._min + (center / self.ITEM_H - half - 0.5))
         val = max(self._min, min(self._max, val))
         if val != self._selected:
             old = self._selected
@@ -848,19 +995,24 @@ class DrumRollPicker(FloatLayout):
 
     @staticmethod
     def _style_label(lbl: Label, dist: int) -> None:
+        base_text = lbl.text.replace("[b]", "").replace("[/b]", "")
         if dist == 0:
+            lbl.text = f"[b]{base_text}[/b]"
             lbl.font_size = "24sp"
             lbl.bold = True
             lbl.color = (1.0, 1.0, 1.0, 1.0)
         elif dist == 1:
+            lbl.text = base_text
             lbl.font_size = "19sp"
             lbl.bold = False
             lbl.color = (0.85, 0.85, 0.85, 0.75)
         elif dist == 2:
+            lbl.text = base_text
             lbl.font_size = "15sp"
             lbl.bold = False
             lbl.color = (0.70, 0.70, 0.70, 0.50)
         else:
+            lbl.text = base_text
             lbl.font_size = "12sp"
             lbl.bold = False
             lbl.color = (0.55, 0.55, 0.55, 0.25)
@@ -1619,6 +1771,67 @@ class EditProfileSheet(ModalView):
 
 
 # ---------------------------------------------------------------------------
+# BMISheet — BMI value, ranges, and info
+# ---------------------------------------------------------------------------
+
+class BMISheet(ModalView):
+    """Full-screen sheet showing BMI value, classification ranges, and info."""
+
+    def __init__(self, profile_screen: ProfileScreen, **kwargs: Any) -> None:
+        super().__init__(size_hint=(1, 1), **kwargs)
+        self._ps = profile_screen
+
+    def populate(self) -> None:
+        """Load BMI from profile and build the ranges list."""
+        bmi: Optional[float] = None
+        if self._ps._height_cm and self._ps._weight_kg and self._ps._height_cm > 0:
+            height_m = self._ps._height_cm / 100.0
+            bmi = self._ps._weight_kg / (height_m * height_m)
+
+        ids = self.ids
+        ids.bmi_value_large.text = f"{bmi:.2f}" if bmi else "—"
+        category = get_bmi_category(bmi) if bmi else None
+        ids.bmi_status.text = category or ""
+
+        container = ids.bmi_ranges_container
+        container.clear_widgets()
+
+        for i, (range_str, label, _lo, _hi) in enumerate(BMI_RANGES):
+            is_highlighted = (
+                bmi is not None
+                and _lo <= bmi < _hi
+            )
+            row = MDBoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(48),
+                padding=["16dp", "8dp", "16dp", "8dp"],
+            )
+            if is_highlighted:
+                row.theme_bg_color = "Custom"
+                row.md_bg_color = (1, 1, 1, 1)
+            range_lbl = MDLabel(
+                text=range_str,
+                size_hint_x=0.35,
+                halign="left",
+                theme_text_color="Custom" if is_highlighted else "Secondary",
+                text_color=(0, 0, 0, 1) if is_highlighted else (0.7, 0.7, 0.7, 1),
+            )
+            cat_lbl = MDLabel(
+                text=label,
+                size_hint_x=0.65,
+                halign="left",
+                theme_text_color="Custom" if is_highlighted else "Secondary",
+                text_color=(0, 0, 0, 1) if is_highlighted else (0.7, 0.7, 0.7, 1),
+            )
+            row.add_widget(range_lbl)
+            row.add_widget(cat_lbl)
+            container.add_widget(row)
+            if i < len(BMI_RANGES) - 1:
+                container.add_widget(MDDivider())
+
+
+# ---------------------------------------------------------------------------
 # MealsSheet — meals per day + meal names
 # ---------------------------------------------------------------------------
 
@@ -1765,6 +1978,7 @@ class ProfileScreen(BaseScreen):
 
     _edit_sheet: Optional[EditProfileSheet] = None
     _body_fat_sheet: Optional[BodyFatSheet] = None
+    _bmi_sheet: Optional[BMISheet] = None
     _meals_sheet: Optional[MealsSheet] = None
 
     def __init__(self, **kwargs: Any) -> None:
@@ -1870,6 +2084,13 @@ class ProfileScreen(BaseScreen):
             self._edit_sheet = EditProfileSheet(profile_screen=self)
         self._edit_sheet.populate()
         self._edit_sheet.open()
+
+    def open_bmi_info(self) -> None:
+        """Open the BMI ranges explanation sheet."""
+        if self._bmi_sheet is None:
+            self._bmi_sheet = BMISheet(profile_screen=self)
+        self._bmi_sheet.populate()
+        self._bmi_sheet.open()
 
     def open_body_fat_dialog(self) -> None:
         """Open the full-screen body-fat calculator sheet."""
