@@ -679,7 +679,7 @@ _DRUM_KV = """
             MDLabel:
                 text: "Meals per day"
                 size_hint_y: None
-                height: "52dp"
+                height: "60dp"
                 halign: "center"
                 valign: "center"
                 font_style: "Title"
@@ -687,31 +687,31 @@ _DRUM_KV = """
 
             MDBoxLayout:
                 id: picker_slot
-                size_hint_y: None
-                height: "308dp"
+                size_hint_y: 1
                 padding: ["0dp", "0dp", "0dp", "0dp"]
 
             MDBoxLayout:
+                size_hint_x: 1
                 size_hint_y: None
-                height: "68dp"
-                padding: ["24dp", "8dp", "24dp", "16dp"]
-                spacing: "16dp"
+                height: "60dp"
+                padding: ["24dp", "0dp", "24dp", "16dp"]
+                spacing: "12dp"
+                orientation: "horizontal"
 
                 MDButton:
                     style: "text"
-                    size_hint_x: None
-                    width: "80dp"
+                    size_hint_x: 1
+                    size_hint_y: None
+                    height: "44dp"
                     on_release: root.dismiss()
                     MDButtonText:
                         text: "Cancel"
 
-                Widget:
-                    size_hint_x: 1
-
                 MDButton:
                     style: "filled"
-                    size_hint_x: None
-                    width: "100dp"
+                    size_hint_x: 1
+                    size_hint_y: None
+                    height: "44dp"
                     radius: [dp(12), dp(12), dp(12), dp(12)]
                     on_release: root._confirm()
                     MDButtonText:
@@ -737,45 +737,45 @@ _DRUM_KV = """
             elevation: 4
             md_bg_color: app.theme_cls.surfaceContainerHighColor
 
-            # Title
+            # Title — equal height with buttons
             MDLabel:
                 text: "Height"
                 size_hint_y: None
-                height: "52dp"
+                height: "60dp"
                 halign: "center"
                 valign: "center"
                 font_style: "Title"
                 bold: True
 
-            # Drum roll — fixed 308dp so highlight aligns with centered value
+            # Drum roll — fills remaining space, highlight centered
             MDBoxLayout:
                 id: picker_slot
-                size_hint_y: None
-                height: "308dp"
+                size_hint_y: 1
                 padding: ["0dp", "0dp", "0dp", "0dp"]
 
-            # Cancel / OK row — Cancel left, Ok right (match reference image)
+            # Cancel / OK row — equal height to title, no gap, centered
             MDBoxLayout:
+                size_hint_x: 1
                 size_hint_y: None
-                height: "68dp"
-                padding: ["24dp", "8dp", "24dp", "16dp"]
-                spacing: "16dp"
+                height: "60dp"
+                padding: ["24dp", "0dp", "24dp", "16dp"]
+                spacing: "12dp"
+                orientation: "horizontal"
 
                 MDButton:
                     style: "text"
-                    size_hint_x: None
-                    width: "80dp"
+                    size_hint_x: 1
+                    size_hint_y: None
+                    height: "44dp"
                     on_release: root.dismiss()
                     MDButtonText:
                         text: "Cancel"
 
-                Widget:
-                    size_hint_x: 1
-
                 MDButton:
                     style: "filled"
-                    size_hint_x: None
-                    width: "100dp"
+                    size_hint_x: 1
+                    size_hint_y: None
+                    height: "44dp"
                     radius: [dp(12), dp(12), dp(12), dp(12)]
                     on_release: root._confirm()
                     MDButtonText:
@@ -849,6 +849,8 @@ class DrumRollPicker(FloatLayout):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
+        self.height = self.VISIBLE * self.ITEM_H
+        self.size_hint = (1, None)
         half = self.VISIBLE // 2
         item_h = self.ITEM_H
         n = self._max - self._min + 1
