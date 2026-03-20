@@ -7,13 +7,14 @@ from typing import Optional
 
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import NumericProperty
+from kivy.properties import NumericProperty, StringProperty
 from kivy.uix.modalview import ModalView
 
 from screens.base_screen import BaseScreen
 from services.macro_calculator import MacroCalculator
 from services.repository import GoalsRepository, ProfileRepository
 from models.user import Goals
+from utils.constants import KCAL_PER_G_CARBS, KCAL_PER_G_FAT, KCAL_PER_G_PROTEIN
 
 Builder.load_file("assets/kv/goals.kv")
 
@@ -68,6 +69,9 @@ class GoalsScreen(BaseScreen):
     protein_pct = NumericProperty(30.0)
     carbs_pct = NumericProperty(40.0)
     fat_pct = NumericProperty(30.0)
+    protein_breakdown_text = StringProperty("Protein\n— g\n— kcal")
+    carbs_breakdown_text = StringProperty("Carbohydrate\n— g\n— kcal")
+    fat_breakdown_text = StringProperty("Fat\n— g\n— kcal")
 
     _edit_sheet: Optional[EditMacrosSheet] = None
 
@@ -99,8 +103,10 @@ class GoalsScreen(BaseScreen):
 
         if goals.calorie_target:
             self.ids.calorie_label.text = f"{goals.calorie_target:.0f} kcal / day"
+            self._update_macro_breakdown(goals.calorie_target)
         else:
             self.ids.calorie_label.text = "— Set profile data first —"
+            self._update_macro_breakdown(None)
 
     # ------------------------------------------------------------------
     # Macro editor page
@@ -159,9 +165,36 @@ class GoalsScreen(BaseScreen):
                 self.ids.calorie_label.text = f"{calorie_target:.0f} kcal / day"
             else:
                 self.ids.calorie_label.text = "— Set profile data first —"
+            self._update_macro_breakdown(calorie_target)
         except Exception as exc:  # pylint: disable=broad-except
             self.hide_loading()
             self.show_error(f"Save failed: {exc}")
+
+    def _update_macro_breakdown(self, calorie_target: Optional[float]) -> None:
+        """Refresh grams and kcal text per macro from current percentages."""
+        if calorie_target is None or calorie_target <= 0:
+            self.protein_breakdown_text = "Protein\n— g\n— kcal"
+            self.carbs_breakdown_text = "Carbohydrate\n— g\n— kcal"
+            self.fat_breakdown_text = "Fat\n— g\n— kcal"
+            return
+
+        protein_kcal = calorie_target * (self.protein_pct / 100.0)
+        carbs_kcal = calorie_target * (self.carbs_pct / 100.0)
+        fat_kcal = calorie_target * (self.fat_pct / 100.0)
+
+        protein_g = protein_kcal / KCAL_PER_G_PROTEIN
+        carbs_g = carbs_kcal / KCAL_PER_G_CARBS
+        fat_g = fat_kcal / KCAL_PER_G_FAT
+
+        self.protein_breakdown_text = (
+            f"Protein\n{protein_g:.0f} g\n{protein_kcal:.0f} kcal"
+        )
+        self.carbs_breakdown_text = (
+            f"Carbohydrate\n{carbs_g:.0f} g\n{carbs_kcal:.0f} kcal"
+        )
+        self.fat_breakdown_text = (
+            f"Fat\n{fat_g:.0f} g\n{fat_kcal:.0f} kcal"
+        )
 
     def _recalculate_calories(self, user_id: str) -> Optional[float]:
         """Return the updated calorie target based on current profile data.

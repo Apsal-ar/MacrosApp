@@ -131,6 +131,59 @@
                     carbs_pct: root.carbs_pct
                     fat_pct: root.fat_pct
 
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "96dp"
+                    spacing: "10dp"
+
+                    MDCard:
+                        padding: "10dp"
+                        radius: [dp(12)]
+                        elevation: 0
+                        md_bg_color: app.theme_cls.surfaceContainerColor
+
+                        MDLabel:
+                            text: root.carbs_breakdown_text
+                            halign: "center"
+                            valign: "middle"
+                            text_size: self.size
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.errorColor
+                            font_style: "Body"
+                            role: "small"
+
+                    MDCard:
+                        padding: "10dp"
+                        radius: [dp(12)]
+                        elevation: 0
+                        md_bg_color: app.theme_cls.surfaceContainerColor
+
+                        MDLabel:
+                            text: root.protein_breakdown_text
+                            halign: "center"
+                            valign: "middle"
+                            text_size: self.size
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.tertiaryColor
+                            font_style: "Body"
+                            role: "small"
+
+                    MDCard:
+                        padding: "10dp"
+                        radius: [dp(12)]
+                        elevation: 0
+                        md_bg_color: app.theme_cls.surfaceContainerColor
+
+                        MDLabel:
+                            text: root.fat_breakdown_text
+                            halign: "center"
+                            valign: "middle"
+                            text_size: self.size
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.onSurfaceColor
+                            font_style: "Body"
+                            role: "small"
+
                 MDButton:
                     style: "filled"
                     size_hint_x: 1

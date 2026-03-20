@@ -16,7 +16,7 @@ from kivy.lang import Builder
 from kivy.properties import NumericProperty
 from kivymd.uix.boxlayout import MDBoxLayout
 
-from utils.constants import RGBA_CARBS, RGBA_FAT, RGBA_PROTEIN
+from utils.constants import RGBA_BG, RGBA_CARBS, RGBA_FAT, RGBA_PROTEIN
 
 Builder.load_string("""
 <MacroPieChart>:
@@ -37,8 +37,10 @@ Builder.load_string("""
             id: pct_protein
             text: ""
             size_hint: None, None
-            adaptive_size: True
+            size: 48, 24
             bold: True
+            halign: "center"
+            valign: "middle"
             theme_text_color: "Custom"
             text_color: 1, 1, 1, 1
             font_style: "Title"
@@ -48,8 +50,10 @@ Builder.load_string("""
             id: pct_carbs
             text: ""
             size_hint: None, None
-            adaptive_size: True
+            size: 48, 24
             bold: True
+            halign: "center"
+            valign: "middle"
             theme_text_color: "Custom"
             text_color: 1, 1, 1, 1
             font_style: "Title"
@@ -59,8 +63,10 @@ Builder.load_string("""
             id: pct_fat
             text: ""
             size_hint: None, None
-            adaptive_size: True
+            size: 48, 24
             bold: True
+            halign: "center"
+            valign: "middle"
             theme_text_color: "Custom"
             text_color: 1, 1, 1, 1
             font_style: "Title"
@@ -166,7 +172,9 @@ class MacroPieChart(MDBoxLayout):
             return
         diameter = radius * 2
 
-        start_angle = 90.0  # start at 12 o'clock
+        # Kivy Ellipse uses (x, y) = (r*sin(θ), r*cos(θ)) in normalized coords, so
+        # θ = 0° is 12 o'clock (top), 90° is 3 o'clock — NOT the usual math convention.
+        start_angle = 0.0
         pct_norm = [round((pct / total) * 100) if total > 0 else 0 for pct in percentages]
         mid_angles: List[float] = []
 
@@ -176,20 +184,23 @@ class MacroPieChart(MDBoxLayout):
                     mid_angles.append(start_angle)
                     continue
                 sweep = (pct / total) * 360.0
+                end_angle = start_angle + sweep
                 r, g, b, a = _COLOURS[i]
                 Color(r, g, b, a)
                 Ellipse(
                     pos=(cx - radius, cy - radius),
                     size=(diameter, diameter),
-                    angle_start=start_angle - sweep,
-                    angle_end=start_angle,
+                    angle_start=start_angle,
+                    angle_end=end_angle,
                 )
-                mid_angles.append(start_angle - (sweep / 2.0))
-                start_angle -= sweep
+                # Bisector of this sector in Kivy angle space (0° = top).
+                mid_angles.append(start_angle + (sweep / 2.0))
+                start_angle = end_angle
 
-            # White centre circle for donut effect
-            Color(1, 1, 1, 1)
-            inner_r = radius * 0.55
+            # Match app background in donut center.
+            bg_r, bg_g, bg_b, bg_a = RGBA_BG
+            Color(bg_r, bg_g, bg_b, bg_a)
+            inner_r = radius * 0.33
             Ellipse(
                 pos=(cx - inner_r, cy - inner_r),
                 size=(inner_r * 2, inner_r * 2),
@@ -224,18 +235,24 @@ class MacroPieChart(MDBoxLayout):
     ) -> None:
         """Place white percentage labels on top of donut segments."""
         label_ids = ["pct_protein", "pct_carbs", "pct_fat"]
-        label_radius = radius * 0.72
+        inner_r = radius * 0.33
+        label_radius = (radius + inner_r) / 2.0
+
+        # Fixed label dimensions — avoids texture_size timing issues
+        label_w = 48
+        label_h = 24
+
         for i, label_id in enumerate(label_ids):
             lbl = self.ids.get(label_id)
             if lbl is None:
                 continue
             pct = percentages[i] if i < len(percentages) else 0
             lbl.text = f"{pct}%"
-            lbl.texture_update()
+            lbl.size = (label_w, label_h)
 
-            angle_deg = mid_angles[i] if i < len(mid_angles) else 90.0
+            # Match Kivy Ellipse: 0° = top, x = r*sin(θ), y = r*cos(θ)
+            angle_deg = mid_angles[i] if i < len(mid_angles) else 0.0
             angle_rad = math.radians(angle_deg)
-            x = cx + label_radius * math.cos(angle_rad)
-            y = cy + label_radius * math.sin(angle_rad)
-            w, h = lbl.texture_size
-            lbl.pos = (x - (w / 2.0), y - (h / 2.0))
+            x = cx + label_radius * math.sin(angle_rad)
+            y = cy + label_radius * math.cos(angle_rad)
+            lbl.pos = (x - label_w / 2.0, y - label_h / 2.0)
