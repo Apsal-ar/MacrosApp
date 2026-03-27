@@ -34,6 +34,8 @@
             size_hint_y: 1
             bar_width: dp(6)
             scroll_type: ["bars", "content"]
+            scroll_distance: dp(28)
+            do_scroll_x: False
 
             MDBoxLayout:
                 orientation: "vertical"
@@ -88,36 +90,103 @@
                         size_hint_x: 1
                     MDSwitch:
                         id: use_rec_switch
-                        active: root.use_recommended
                         disabled: not root.body_available
                         on_active: root.on_use_switch_active(self, self.active)
 
                 MDBoxLayout:
                     size_hint_y: None
-                    height: "1dp"
-                    md_bg_color: app.theme_cls.onSurfaceColor
-                    opacity: 0.2
+                    height: "48dp"
+                    spacing: "8dp"
 
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: "44dp"
                     MDLabel:
                         text: "Caloric requirement"
                         theme_text_color: "Custom"
                         text_color: 1, 1, 1, 1
                         font_style: "Body"
                         role: "medium"
-                        valign: "center"
-                    Widget:
-                        size_hint_x: 1
-                    MDLabel:
-                        text: root.caloric_row_value
-                        theme_text_color: "Custom"
-                        text_color: 1, 1, 1, 1
-                        font_style: "Body"
-                        role: "medium"
-                        halign: "right"
-                        valign: "center"
+                        halign: "left"
+                        valign: "middle"
+                        size_hint_x: 0.5
+                        text_size: self.width, None
+
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        size_hint_x: 0.5
+
+                        Widget:
+                            size_hint_x: 1
+
+                        MDBoxLayout:
+                            orientation: "horizontal"
+                            size_hint_x: None
+                            spacing: "6dp"
+
+                            TextInput:
+                                id: kcal_edit
+                                multiline: False
+                                write_tab: False
+                                readonly: root.use_recommended
+                                disabled: not root.body_available
+                                input_type: "number"
+                                background_normal: ""
+                                background_active: ""
+                                background_color: 0, 0, 0, 0
+                                border: [0, 0, 0, 0]
+                                cursor_color: 1, 1, 1, 1
+                                foreground_color: 1, 1, 1, 1
+                                hint_text: ""
+                                size_hint_x: None
+                                width: dp(128)
+                                height: dp(40)
+                                font_size: dp(16)
+                                padding: ["6dp", "8dp", "6dp", "8dp"]
+                                halign: "right"
+                                input_filter: "float"
+                                on_text: root.on_kcal_field_text(self.text)
+
+                            MDLabel:
+                                text: "kcal"
+                                theme_text_color: "Secondary"
+                                font_style: "Body"
+                                role: "medium"
+                                valign: "middle"
+                                halign: "left"
+                                size_hint_x: None
+                                width: dp(38)
+
+                FloatLayout:
+                    size_hint_y: None
+                    height: "52dp"
+
+                    CalorieSliderTrack:
+                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                        size_hint: 0.92, None
+                        height: "8dp"
+
+                    Slider:
+                        id: slider_adj
+                        min: -50
+                        max: 50
+                        step: 1
+                        disabled: not root.body_available
+                        pos_hint: {"x": 0, "y": 0}
+                        size_hint: 1, 1
+                        padding: "12dp"
+                        cursor_size: [dp(28), dp(28)]
+                        on_value: root.on_slider_changed(self.value)
+
+                MDLabel:
+                    text: root.modification_line
+                    font_style: "Body"
+                    role: "small"
+                    halign: "center"
+                    valign: "top"
+                    theme_text_color: "Secondary"
+                    size_hint_x: 1
+                    size_hint_y: None
+                    height: "40dp"
+                    text_size: self.width, None
+                    opacity: 1 if root.modification_line else 0
 
                 MDCard:
                     orientation: "vertical"
@@ -129,11 +198,12 @@
                     height: self.minimum_height
 
                     MDLabel:
-                        text: "These are the calories to aim for each day for your goal, based on activity, sex, age, and weight. You can fine-tune by ±50% of the recommended value; large changes may not be appropriate for everyone."
+                        text: "Those are the calories you need to eat each day to accomplish your goal, depending on your level of physical activity, sex, age, etc. Your goal can increase or decrease this value up to 20%; beyond that limit is not recommended nor healthy."
                         font_style: "Body"
                         role: "small"
                         theme_text_color: "Custom"
                         text_color: 0.92, 0.94, 0.98, 1
+                        font_size: "12sp"
                         text_size: self.width, None
                         halign: "left"
 
@@ -148,44 +218,11 @@
                     height: "48dp"
                     opacity: 1 if root.info_notice else 0
 
-        MDBoxLayout:
-            orientation: "vertical"
-            size_hint_y: None
-            padding: ["16dp", "8dp", "16dp", "12dp"]
-            spacing: "8dp"
-
-            Slider:
-                id: slider_adj
-                min: -50
-                max: 50
-                step: 1
-                disabled: not root.body_available
-                size_hint_y: None
-                height: "52dp"
-                cursor_size: [dp(28), dp(28)]
-                on_value: root.on_slider_changed(self.value)
-
-            MDLabel:
-                text: root.modification_line
-                font_style: "Body"
-                role: "small"
-                halign: "center"
-                theme_text_color: "Secondary"
-                size_hint_y: None
-                height: "36dp"
-                text_size: self.width, None
-                opacity: 1 if root.modification_line else 0
-
-            AnchorLayout:
-                size_hint_y: None
-                height: "52dp"
-                anchor_x: "center"
-                anchor_y: "center"
-
                 MDButton:
                     style: "filled"
-                    size_hint_x: None
-                    width: dp(200)
+                    size_hint_y: None
+                    height: "48dp"
+                    size_hint_x: 1
                     disabled: not root.body_available
                     on_release: root.save_calories()
 

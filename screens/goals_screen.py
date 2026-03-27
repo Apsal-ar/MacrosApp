@@ -24,6 +24,7 @@ from utils.constants import (
 )
 from kivymd.uix.selectioncontrol import MDSwitch  # noqa: F401 — registers MDSwitch for KV
 
+from widgets.calorie_slider_track import CalorieSliderTrack  # noqa: F401 — registers CalorieSliderTrack for KV
 from widgets.macro_pie_chart import MacroPieChart  # noqa: F401 — registers MacroPieChart for KV
 
 
@@ -45,10 +46,11 @@ class EditCalorieTargetSheet(ModalView):
         super().__init__(size_hint=(1, 1), **kwargs)
         self._gs = goals_screen
         self._populating = False
+        self._syncing_field = False
 
     def populate(self) -> None:
         """Load TDEE, recommended kcal, and derive slider from saved target."""
-        if "slider_adj" not in self.ids:
+        if "slider_adj" not in self.ids or "kcal_edit" not in self.ids:
             Clock.schedule_once(lambda _dt: self.populate(), 0)
             return
         self._populating = True
@@ -83,6 +85,62 @@ class EditCalorieTargetSheet(ModalView):
 
         self._populating = False
         self._refresh_labels()
+        Clock.schedule_once(self._style_slider, 0)
+
+    def _style_slider(self, _dt: float) -> None:
+        """Hide the default horizontal rail so the colored strip shows through."""
+        s = self.ids.get("slider_adj")
+        if not s:
+            return
+        s.background_width = 0
+
+    def _set_kcal_field_text(self, d: float) -> None:
+        """Update the kcal TextInput without treating it as user input."""
+        if "kcal_edit" not in self.ids:
+            return
+        txt = f"{d:.0f}" if self.body_available and d else ""
+        if self.ids.kcal_edit.text == txt:
+            return
+        self._syncing_field = True
+        self.ids.kcal_edit.text = txt
+        self._syncing_field = False
+
+    def _focus_kcal_field(self, _dt: float = 0.0) -> None:
+        """After turning off 'Use recommended', focus kcal field and open keyboard."""
+        if not self.body_available:
+            return
+        w = self.ids.get("kcal_edit")
+        if w is None:
+            return
+        if self.use_recommended:
+            return
+        w.focus = True
+
+    def on_kcal_field_text(self, text: str) -> None:
+        """Typed kcal → adjustment % and slider (manual mode only)."""
+        if self._populating or self._syncing_field:
+            return
+        if self.use_recommended:
+            return
+        try:
+            raw = (text or "").strip()
+            if raw in ("", ".", "-", "-."):
+                return
+            kcal = float(raw)
+        except ValueError:
+            return
+        kcal = max(400.0, min(25000.0, kcal))
+        rec = float(self.recommended_kcal)
+        if rec <= 0:
+            return
+        adj = (kcal / rec - 1.0) * 100.0
+        adj = max(-50.0, min(50.0, adj))
+        self._populating = True
+        self.adjustment_pct = adj
+        if "slider_adj" in self.ids:
+            self.ids.slider_adj.value = adj
+        self._populating = False
+        self._refresh_labels()
 
     def _display_kcal(self) -> float:
         rec = float(self.recommended_kcal)
@@ -103,10 +161,12 @@ class EditCalorieTargetSheet(ModalView):
             self.maintenance_line = ""
         ap = float(self.adjustment_pct)
         self.modification_line = (
-            f"Recommended calories modification: {ap:+.0f} %"
+            f"Maintenance calories modification: {ap:+.0f} %"
             if self.body_available
             else ""
         )
+        if "kcal_edit" in self.ids:
+            self._set_kcal_field_text(d)
 
     def on_adjustment_pct(self, *_a: object) -> None:
         if self._populating:
@@ -127,19 +187,24 @@ class EditCalorieTargetSheet(ModalView):
             self._populating = False
 
     def on_use_switch_active(self, _inst: object, active: bool) -> None:
-        """Toggle on → snap to recommended (0% adjustment)."""
+        """Toggle: ON → recommended; OFF → manual entry + focus kcal field."""
         if self._populating:
             return
         if not self.body_available:
             return
+        self.use_recommended = active
         if active:
             self._populating = True
             self.adjustment_pct = 0.0
-            self.use_recommended = True
             if "slider_adj" in self.ids:
                 self.ids.slider_adj.value = 0.0
+            if "kcal_edit" in self.ids:
+                self.ids.kcal_edit.focus = False
             self._populating = False
             self._refresh_labels()
+        else:
+            self._refresh_labels()
+            Clock.schedule_once(self._focus_kcal_field, 0.2)
 
     def save_calories(self) -> None:
         """Persist computed daily kcal."""
