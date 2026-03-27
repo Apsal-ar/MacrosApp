@@ -1,4 +1,4 @@
-<EditMacrosSheet>:
+<EditCalorieTargetSheet>:
     background: " "
     background_color: 0, 0, 0, 0
     auto_dismiss: False
@@ -22,7 +22,7 @@
                 on_release: root.dismiss()
 
             MDLabel:
-                text: "Edit macronutrients"
+                text: "Daily calorie target"
                 theme_text_color: "Custom"
                 text_color: 1, 1, 1, 1
                 font_style: "Title"
@@ -38,42 +38,403 @@
             MDCard:
                 orientation: "vertical"
                 padding: "16dp"
-                spacing: "8dp"
+                spacing: "12dp"
                 radius: [dp(12)]
                 elevation: 0
+                md_bg_color: app.theme_cls.surfaceContainerColor
                 size_hint_y: None
                 height: self.minimum_height
 
-                MDTextField:
-                    id: protein_input
-                    hint_text: "Protein (%)"
-                    input_filter: "float"
-
-                MDTextField:
-                    id: fat_input
-                    hint_text: "Fat (%)"
-                    input_filter: "float"
-
-                MDTextField:
-                    id: carbs_input
-                    hint_text: "Carbohydrates (%)"
-                    input_filter: "float"
-
                 MDLabel:
-                    text: "Total must equal 100%"
+                    text: "Set your target in kcal per day. This overrides the value calculated from your profile until you change it again from here."
                     font_style: "Body"
                     role: "small"
                     theme_text_color: "Secondary"
+
+                MDTextField:
+                    id: kcal_input
+                    hint_text: "kcal / day"
+                    input_filter: "float"
 
             Widget:
 
             MDButton:
                 style: "filled"
                 size_hint_x: 1
-                on_release: root.save_changes()
+                on_release: root.save_calories()
 
                 MDButtonText:
-                    text: "Save macronutrients"
+                    text: "Save"
+
+<EditMacrosSheet>:
+    background: " "
+    background_color: 0, 0, 0, 0
+    auto_dismiss: False
+
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: app.theme_cls.backgroundColor
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            spacing: "4dp"
+            padding: ["4dp", "0dp", "16dp", "0dp"]
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.request_back()
+
+            MDLabel:
+                text: "Macronutrients"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "Title"
+                role: "medium"
+                halign: "left"
+                valign: "center"
+
+        MDScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: ["16dp", "12dp", "16dp", "24dp"]
+                spacing: "16dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                MDLabel:
+                    text: "Macronutrients distribution"
+                    font_style: "Title"
+                    role: "large"
+                    bold: True
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    size_hint_y: None
+                    text_size: self.width, None
+                    halign: "left"
+
+                MDCard:
+                    orientation: "vertical"
+                    padding: ["12dp", "10dp", "12dp", "12dp"]
+                    spacing: "0dp"
+                    radius: [dp(12)]
+                    elevation: 0
+                    md_bg_color: app.theme_cls.surfaceContainerColor
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "42dp"
+                        padding: ["0dp", "5dp", "0dp", "5dp"]
+                        MDLabel:
+                            text: "Set in"
+                            size_hint_x: None
+                            width: dp(108)
+                            valign: "middle"
+                            halign: "left"
+                            theme_text_color: "Secondary"
+                            font_style: "Body"
+                            role: "medium"
+                        AnchorLayout:
+                            anchor_x: "right"
+                            anchor_y: "center"
+                            size_hint_x: 1
+                            MDButton:
+                                style: "text"
+                                size_hint_x: None
+                                padding: [0, 0, 0, 0]
+                                on_release: root.open_mode_menu()
+                                MDButtonText:
+                                    text: root.mode_display_text
+                                    theme_text_color: "Custom"
+                                    text_color: app.theme_cls.primaryColor
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        size_hint_x: 1
+                        height: "1dp"
+                        md_bg_color: app.theme_cls.onSurfaceColor
+                        opacity: 0.22
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "42dp"
+                        padding: ["0dp", "5dp", "0dp", "5dp"]
+                        MDLabel:
+                            text: "Carbohydrate"
+                            size_hint_x: None
+                            width: dp(108)
+                            valign: "middle"
+                            halign: "left"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            font_style: "Body"
+                            role: "medium"
+                        AnchorLayout:
+                            anchor_x: "right"
+                            anchor_y: "center"
+                            size_hint_x: 1
+                            MDCard:
+                                orientation: "horizontal"
+                                size_hint_x: None
+                                size_hint_y: None
+                                width: dp(112)
+                                height: dp(36)
+                                padding: ["8dp", "0dp", "10dp", "0dp"]
+                                spacing: "0dp"
+                                radius: [dp(8)]
+                                elevation: 0
+                                md_bg_color: 0.15, 0.19, 0.24, 1
+                                TextInput:
+                                    id: carbs_input
+                                    multiline: False
+                                    write_tab: False
+                                    background_normal: ""
+                                    background_active: ""
+                                    background_color: 0, 0, 0, 0
+                                    border: [0, 0, 0, 0]
+                                    cursor_color: 1, 1, 1, 1
+                                    foreground_color: 1, 1, 1, 1
+                                    size_hint_x: None
+                                    width: dp(64)
+                                    height: dp(34)
+                                    font_size: dp(16)
+                                    padding: ["0dp", "6dp", "2dp", "6dp"]
+                                    halign: "right"
+                                    input_filter: "float"
+                                    on_text: root.sync_from_field("carbs", self.text)
+                                MDLabel:
+                                    text: root.unit_suffix
+                                    size_hint_x: None
+                                    width: dp(22)
+                                    halign: "left"
+                                    valign: "middle"
+                                    theme_text_color: "Secondary"
+                                    font_style: "Body"
+                                    role: "medium"
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        size_hint_x: 1
+                        height: "1dp"
+                        md_bg_color: app.theme_cls.onSurfaceColor
+                        opacity: 0.22
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "42dp"
+                        padding: ["0dp", "5dp", "0dp", "5dp"]
+                        MDLabel:
+                            text: "Protein"
+                            size_hint_x: None
+                            width: dp(108)
+                            valign: "middle"
+                            halign: "left"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            font_style: "Body"
+                            role: "medium"
+                        AnchorLayout:
+                            anchor_x: "right"
+                            anchor_y: "center"
+                            size_hint_x: 1
+                            MDCard:
+                                orientation: "horizontal"
+                                size_hint_x: None
+                                size_hint_y: None
+                                width: dp(112)
+                                height: dp(36)
+                                padding: ["8dp", "0dp", "10dp", "0dp"]
+                                spacing: "0dp"
+                                radius: [dp(8)]
+                                elevation: 0
+                                md_bg_color: 0.15, 0.19, 0.24, 1
+                                TextInput:
+                                    id: protein_input
+                                    multiline: False
+                                    write_tab: False
+                                    background_normal: ""
+                                    background_active: ""
+                                    background_color: 0, 0, 0, 0
+                                    border: [0, 0, 0, 0]
+                                    cursor_color: 1, 1, 1, 1
+                                    foreground_color: 1, 1, 1, 1
+                                    size_hint_x: None
+                                    width: dp(64)
+                                    height: dp(34)
+                                    font_size: dp(16)
+                                    padding: ["0dp", "6dp", "2dp", "6dp"]
+                                    halign: "right"
+                                    input_filter: "float"
+                                    on_text: root.sync_from_field("protein", self.text)
+                                MDLabel:
+                                    text: root.unit_suffix
+                                    size_hint_x: None
+                                    width: dp(22)
+                                    halign: "left"
+                                    valign: "middle"
+                                    theme_text_color: "Secondary"
+                                    font_style: "Body"
+                                    role: "medium"
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        size_hint_x: 1
+                        height: "1dp"
+                        md_bg_color: app.theme_cls.onSurfaceColor
+                        opacity: 0.22
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "42dp"
+                        padding: ["0dp", "5dp", "0dp", "5dp"]
+                        MDLabel:
+                            text: "Fat"
+                            size_hint_x: None
+                            width: dp(108)
+                            valign: "middle"
+                            halign: "left"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            font_style: "Body"
+                            role: "medium"
+                        AnchorLayout:
+                            anchor_x: "right"
+                            anchor_y: "center"
+                            size_hint_x: 1
+                            MDCard:
+                                orientation: "horizontal"
+                                size_hint_x: None
+                                size_hint_y: None
+                                width: dp(112)
+                                height: dp(36)
+                                padding: ["8dp", "0dp", "10dp", "0dp"]
+                                spacing: "0dp"
+                                radius: [dp(8)]
+                                elevation: 0
+                                md_bg_color: 0.15, 0.19, 0.24, 1
+                                TextInput:
+                                    id: fat_input
+                                    multiline: False
+                                    write_tab: False
+                                    background_normal: ""
+                                    background_active: ""
+                                    background_color: 0, 0, 0, 0
+                                    border: [0, 0, 0, 0]
+                                    cursor_color: 1, 1, 1, 1
+                                    foreground_color: 1, 1, 1, 1
+                                    size_hint_x: None
+                                    width: dp(64)
+                                    height: dp(34)
+                                    font_size: dp(16)
+                                    padding: ["0dp", "6dp", "2dp", "6dp"]
+                                    halign: "right"
+                                    input_filter: "float"
+                                    on_text: root.sync_from_field("fat", self.text)
+                                MDLabel:
+                                    text: root.unit_suffix
+                                    size_hint_x: None
+                                    width: dp(22)
+                                    halign: "left"
+                                    valign: "middle"
+                                    theme_text_color: "Secondary"
+                                    font_style: "Body"
+                                    role: "medium"
+
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "100dp"
+                    spacing: "8dp"
+
+                    MDCard:
+                        padding: "10dp"
+                        radius: [dp(12)]
+                        elevation: 0
+                        md_bg_color: app.theme_cls.surfaceContainerColor
+
+                        MDLabel:
+                            markup: True
+                            text: root.sheet_carbs_breakdown_text
+                            halign: "center"
+                            valign: "middle"
+                            text_size: self.size
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            font_style: "Body"
+                            role: "small"
+
+                    MDCard:
+                        padding: "10dp"
+                        radius: [dp(12)]
+                        elevation: 0
+                        md_bg_color: app.theme_cls.surfaceContainerColor
+
+                        MDLabel:
+                            markup: True
+                            text: root.sheet_protein_breakdown_text
+                            halign: "center"
+                            valign: "middle"
+                            text_size: self.size
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            font_style: "Body"
+                            role: "small"
+
+                    MDCard:
+                        padding: "10dp"
+                        radius: [dp(12)]
+                        elevation: 0
+                        md_bg_color: app.theme_cls.surfaceContainerColor
+
+                        MDLabel:
+                            markup: True
+                            text: root.sheet_fat_breakdown_text
+                            halign: "center"
+                            valign: "middle"
+                            text_size: self.size
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            font_style: "Body"
+                            role: "small"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "72dp" if root.validation_message else "0dp"
+                    opacity: 1 if root.validation_message else 0
+                    padding: "12dp"
+                    radius: [dp(10)]
+                    elevation: 0
+                    md_bg_color: [0.18, 0.38, 0.72, 1]
+
+                    MDLabel:
+                        text: root.validation_message
+                        halign: "center"
+                        valign: "middle"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        font_style: "Body"
+                        role: "small"
+                        text_size: self.width, None
+
+                MacroPieChart:
+                    id: pie_chart
+                    protein_pct: root.draft_protein_pct
+                    carbs_pct: root.draft_carbs_pct
+                    fat_pct: root.draft_fat_pct
+
+                MDButton:
+                    style: "filled"
+                    size_hint_x: 1
+                    disabled: not root.can_save
+                    on_release: root.save_changes()
+
+                    MDButtonText:
+                        text: "Save"
 
 <GoalsScreen>:
     MDBoxLayout:
@@ -108,6 +469,8 @@
                     elevation: 1
                     size_hint_y: None
                     height: "88dp"
+                    ripple_behavior: True
+                    on_release: root.open_calorie_editor()
 
                     MDBoxLayout:
                         orientation: "vertical"
@@ -187,10 +550,27 @@
                             font_style: "Body"
                             role: "small"
 
-                MDButton:
-                    style: "filled"
-                    size_hint_x: 1
-                    on_release: root.open_macro_editor()
+                AnchorLayout:
+                    size_hint_y: None
+                    height: "56dp"
+                    anchor_x: "center"
+                    anchor_y: "center"
 
-                    MDButtonText:
-                        text: "Edit macronutrients"
+                    MDCard:
+                        size_hint_x: None
+                        width: dp(280)
+                        padding: ["20dp", "14dp", "20dp", "14dp"]
+                        radius: [dp(12)]
+                        elevation: 0
+                        md_bg_color: app.theme_cls.surfaceContainerColor
+                        ripple_behavior: True
+                        on_release: root.open_macro_editor()
+
+                        MDLabel:
+                            text: "Edit macronutrients"
+                            font_style: "Title"
+                            role: "small"
+                            halign: "center"
+                            valign: "middle"
+                            theme_text_color: "Custom"
+                            text_color: app.theme_cls.primaryColor
