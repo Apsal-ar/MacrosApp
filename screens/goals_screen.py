@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import time
 from typing import Optional
 
@@ -23,32 +22,131 @@ from utils.constants import (
     KCAL_PER_G_FAT,
     KCAL_PER_G_PROTEIN,
 )
+from kivymd.uix.selectioncontrol import MDSwitch  # noqa: F401 — registers MDSwitch for KV
+
 from widgets.macro_pie_chart import MacroPieChart  # noqa: F401 — registers MacroPieChart for KV
 
 
 class EditCalorieTargetSheet(ModalView):
-    """Full-screen editor for manual daily kcal target."""
+    """Caloric requirement: recommended kcal ± slider %, optional use-recommended."""
+
+    maintenance_kcal = NumericProperty(0.0)
+    recommended_kcal = NumericProperty(0.0)
+    adjustment_pct = NumericProperty(0.0)
+    use_recommended = BooleanProperty(True)
+    hero_kcal_text = StringProperty("—")
+    maintenance_line = StringProperty("")
+    caloric_row_value = StringProperty("")
+    modification_line = StringProperty("")
+    body_available = BooleanProperty(False)
+    info_notice = StringProperty("")
 
     def __init__(self, goals_screen: "GoalsScreen", **kwargs: object) -> None:
         super().__init__(size_hint=(1, 1), **kwargs)
         self._gs = goals_screen
+        self._populating = False
 
     def populate(self) -> None:
-        """Prefill from the main Goals screen calorie label."""
-        text = self._gs.ids.calorie_label.text
-        match = re.search(r"([\d.]+)", text)
-        if match:
-            self.ids.kcal_input.text = match.group(1)
+        """Load TDEE, recommended kcal, and derive slider from saved target."""
+        if "slider_adj" not in self.ids:
+            Clock.schedule_once(lambda _dt: self.populate(), 0)
+            return
+        self._populating = True
+        tdee, rec = self._gs.get_tdee_and_recommended_kcal()
+        self.maintenance_kcal = float(tdee or 0.0)
+        self.recommended_kcal = float(rec or 0.0)
+        self.body_available = bool(rec and rec > 0)
+        self.info_notice = ""
+
+        current = self._gs.get_calorie_target_optional()
+        if current is None or current <= 0:
+            current = rec if rec else None
+
+        if self.body_available and rec and current:
+            adj = (float(current) / float(rec) - 1.0) * 100.0
+            adj = max(-50.0, min(50.0, adj))
+            self.adjustment_pct = adj
+            self.use_recommended = abs(adj) < 0.5
         else:
-            self.ids.kcal_input.text = ""
+            self.adjustment_pct = 0.0
+            self.use_recommended = True
+            if not self.body_available:
+                self.info_notice = (
+                    "Complete your profile (weight, height, age, activity, goal) "
+                    "to calculate recommended calories."
+                )
+
+        if "slider_adj" in self.ids:
+            self.ids.slider_adj.value = self.adjustment_pct
+        if "use_rec_switch" in self.ids:
+            self.ids.use_rec_switch.active = self.use_recommended
+
+        self._populating = False
+        self._refresh_labels()
+
+    def _display_kcal(self) -> float:
+        rec = float(self.recommended_kcal)
+        if rec <= 0:
+            return 0.0
+        raw = rec * (1.0 + float(self.adjustment_pct) / 100.0)
+        return max(400.0, min(25000.0, raw))
+
+    def _refresh_labels(self) -> None:
+        d = self._display_kcal()
+        self.hero_kcal_text = f"{d:.0f}" if self.body_available and d else "—"
+        self.caloric_row_value = f"{d:.0f} kcal" if self.body_available and d else "—"
+        if self.maintenance_kcal > 0:
+            self.maintenance_line = (
+                f"Maintenance calories: {self.maintenance_kcal:.0f} kcal"
+            )
+        else:
+            self.maintenance_line = ""
+        ap = float(self.adjustment_pct)
+        self.modification_line = (
+            f"Recommended calories modification: {ap:+.0f} %"
+            if self.body_available
+            else ""
+        )
+
+    def on_adjustment_pct(self, *_a: object) -> None:
+        if self._populating:
+            return
+        self._refresh_labels()
+
+    def on_slider_changed(self, value: float) -> None:
+        """Slider moved: update % and clear use-recommended when non-zero."""
+        if self._populating:
+            return
+        self.adjustment_pct = float(value)
+        use_rec = abs(float(value)) < 0.5
+        if self.use_recommended != use_rec:
+            self._populating = True
+            self.use_recommended = use_rec
+            if "use_rec_switch" in self.ids:
+                self.ids.use_rec_switch.active = use_rec
+            self._populating = False
+
+    def on_use_switch_active(self, _inst: object, active: bool) -> None:
+        """Toggle on → snap to recommended (0% adjustment)."""
+        if self._populating:
+            return
+        if not self.body_available:
+            return
+        if active:
+            self._populating = True
+            self.adjustment_pct = 0.0
+            self.use_recommended = True
+            if "slider_adj" in self.ids:
+                self.ids.slider_adj.value = 0.0
+            self._populating = False
+            self._refresh_labels()
 
     def save_calories(self) -> None:
-        """Validate and persist manual kcal."""
-        try:
-            kcal = float(self.ids.kcal_input.text.strip())
-        except ValueError:
-            self._gs.show_error("Please enter a valid number")
+        """Persist computed daily kcal."""
+        if not self.body_available:
+            self._gs.show_error("Complete your profile first.")
             return
+        kcal = self._display_kcal()
         if kcal < 400 or kcal > 25000:
             self._gs.show_error("Enter a value between 400 and 25000 kcal")
             return
@@ -535,6 +633,36 @@ class GoalsScreen(BaseScreen):
         if goals is None or goals.calorie_target is None:
             return None
         return float(goals.calorie_target)
+
+    def get_tdee_and_recommended_kcal(self) -> tuple[Optional[float], Optional[float]]:
+        """TDEE (maintenance) and goal-adjusted recommended kcal from profile."""
+        user_id = self.get_current_user_id()
+        if not user_id:
+            return None, None
+        profile = self.get_repo(ProfileRepository).get(user_id)
+        if profile is None:
+            return None, None
+        if any(
+            v is None
+            for v in (
+                profile.weight_kg,
+                profile.height_cm,
+                profile.age,
+                profile.sex,
+                profile.activity,
+                profile.goal,
+            )
+        ):
+            return None, None
+        bmr = MacroCalculator.calculate_bmr(
+            profile.weight_kg,
+            profile.height_cm,
+            profile.age,
+            profile.sex,
+        )
+        tdee = MacroCalculator.calculate_tdee(bmr, profile.activity)
+        recommended = MacroCalculator.apply_goal_modifier(tdee, profile.goal)
+        return float(tdee), float(recommended)
 
     def open_calorie_editor(self) -> None:
         """Open the full-screen manual calorie target editor."""

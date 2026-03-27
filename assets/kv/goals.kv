@@ -22,7 +22,7 @@
                 on_release: root.dismiss()
 
             MDLabel:
-                text: "Daily calorie target"
+                text: "Caloric requirement"
                 theme_text_color: "Custom"
                 text_color: 1, 1, 1, 1
                 font_style: "Title"
@@ -30,41 +30,167 @@
                 halign: "left"
                 valign: "center"
 
-        MDBoxLayout:
-            orientation: "vertical"
-            padding: ["16dp", "20dp", "16dp", "24dp"]
-            spacing: "16dp"
+        MDScrollView:
+            size_hint_y: 1
+            bar_width: dp(6)
+            scroll_type: ["bars", "content"]
 
-            MDCard:
+            MDBoxLayout:
                 orientation: "vertical"
-                padding: "16dp"
-                spacing: "12dp"
-                radius: [dp(12)]
-                elevation: 0
-                md_bg_color: app.theme_cls.surfaceContainerColor
+                padding: ["16dp", "16dp", "16dp", "16dp"]
+                spacing: "16dp"
                 size_hint_y: None
                 height: self.minimum_height
 
                 MDLabel:
-                    text: "Set your target in kcal per day. This overrides the value calculated from your profile until you change it again from here."
+                    text: root.hero_kcal_text
+                    font_style: "Title"
+                    role: "large"
+                    halign: "center"
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    size_hint_y: None
+                    height: "56dp"
+
+                MDLabel:
+                    text: "kcal"
+                    font_style: "Title"
+                    role: "small"
+                    halign: "center"
+                    theme_text_color: "Custom"
+                    text_color: app.theme_cls.primaryColor
+                    size_hint_y: None
+                    height: "28dp"
+
+                MDLabel:
+                    text: root.maintenance_line
                     font_style: "Body"
                     role: "small"
+                    halign: "center"
                     theme_text_color: "Secondary"
+                    size_hint_y: None
+                    height: "28dp"
+                    text_size: self.width, None
+                    opacity: 1 if root.maintenance_line else 0
 
-                MDTextField:
-                    id: kcal_input
-                    hint_text: "kcal / day"
-                    input_filter: "float"
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "48dp"
+                    padding: ["0dp", "8dp", "0dp", "0dp"]
+                    MDLabel:
+                        text: "Use recommended"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        font_style: "Body"
+                        role: "medium"
+                        valign: "center"
+                    Widget:
+                        size_hint_x: 1
+                    MDSwitch:
+                        id: use_rec_switch
+                        active: root.use_recommended
+                        disabled: not root.body_available
+                        on_active: root.on_use_switch_active(self, self.active)
 
-            Widget:
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "1dp"
+                    md_bg_color: app.theme_cls.onSurfaceColor
+                    opacity: 0.2
 
-            MDButton:
-                style: "filled"
-                size_hint_x: 1
-                on_release: root.save_calories()
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "44dp"
+                    MDLabel:
+                        text: "Caloric requirement"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        font_style: "Body"
+                        role: "medium"
+                        valign: "center"
+                    Widget:
+                        size_hint_x: 1
+                    MDLabel:
+                        text: root.caloric_row_value
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        font_style: "Body"
+                        role: "medium"
+                        halign: "right"
+                        valign: "center"
 
-                MDButtonText:
-                    text: "Save"
+                MDCard:
+                    orientation: "vertical"
+                    padding: "14dp"
+                    radius: [dp(12)]
+                    elevation: 0
+                    md_bg_color: [0.14, 0.22, 0.38, 1]
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                    MDLabel:
+                        text: "These are the calories to aim for each day for your goal, based on activity, sex, age, and weight. You can fine-tune by ±50% of the recommended value; large changes may not be appropriate for everyone."
+                        font_style: "Body"
+                        role: "small"
+                        theme_text_color: "Custom"
+                        text_color: 0.92, 0.94, 0.98, 1
+                        text_size: self.width, None
+                        halign: "left"
+
+                MDLabel:
+                    text: root.info_notice
+                    font_style: "Body"
+                    role: "small"
+                    theme_text_color: "Error"
+                    halign: "center"
+                    text_size: self.width, None
+                    size_hint_y: None
+                    height: "48dp"
+                    opacity: 1 if root.info_notice else 0
+
+        MDBoxLayout:
+            orientation: "vertical"
+            size_hint_y: None
+            padding: ["16dp", "8dp", "16dp", "12dp"]
+            spacing: "8dp"
+
+            Slider:
+                id: slider_adj
+                min: -50
+                max: 50
+                step: 1
+                disabled: not root.body_available
+                size_hint_y: None
+                height: "52dp"
+                cursor_size: [dp(28), dp(28)]
+                on_value: root.on_slider_changed(self.value)
+
+            MDLabel:
+                text: root.modification_line
+                font_style: "Body"
+                role: "small"
+                halign: "center"
+                theme_text_color: "Secondary"
+                size_hint_y: None
+                height: "36dp"
+                text_size: self.width, None
+                opacity: 1 if root.modification_line else 0
+
+            AnchorLayout:
+                size_hint_y: None
+                height: "52dp"
+                anchor_x: "center"
+                anchor_y: "center"
+
+                MDButton:
+                    style: "filled"
+                    size_hint_x: None
+                    width: dp(200)
+                    disabled: not root.body_available
+                    on_release: root.save_calories()
+
+                    MDButtonText:
+                        text: "Save"
 
 <EditMacrosSheet>:
     background: " "
@@ -119,7 +245,7 @@
 
                 MDCard:
                     orientation: "vertical"
-                    padding: ["12dp", "10dp", "12dp", "12dp"]
+                    padding: ["12dp", "10dp", "6dp", "12dp"]
                     spacing: "0dp"
                     radius: [dp(12)]
                     elevation: 0
@@ -148,11 +274,13 @@
                                 style: "text"
                                 size_hint_x: None
                                 padding: [0, 0, 0, 0]
+                                pos_hint: {"center_y": 0.5}
                                 on_release: root.open_mode_menu()
                                 MDButtonText:
                                     text: root.mode_display_text
                                     theme_text_color: "Custom"
                                     text_color: app.theme_cls.primaryColor
+                                    padding: [0, 0, 0, 0]
 
                     MDBoxLayout:
                         size_hint_y: None
@@ -185,7 +313,7 @@
                                 size_hint_y: None
                                 width: dp(112)
                                 height: dp(36)
-                                padding: ["8dp", "0dp", "10dp", "0dp"]
+                                padding: ["6dp", "0dp", "4dp", "0dp"]
                                 spacing: "0dp"
                                 radius: [dp(8)]
                                 elevation: 0
@@ -204,7 +332,7 @@
                                     width: dp(64)
                                     height: dp(34)
                                     font_size: dp(16)
-                                    padding: ["0dp", "6dp", "2dp", "6dp"]
+                                    padding: ["0dp", "6dp", "0dp", "6dp"]
                                     halign: "right"
                                     input_filter: "float"
                                     on_text: root.sync_from_field("carbs", self.text)
@@ -249,7 +377,7 @@
                                 size_hint_y: None
                                 width: dp(112)
                                 height: dp(36)
-                                padding: ["8dp", "0dp", "10dp", "0dp"]
+                                padding: ["6dp", "0dp", "4dp", "0dp"]
                                 spacing: "0dp"
                                 radius: [dp(8)]
                                 elevation: 0
@@ -268,7 +396,7 @@
                                     width: dp(64)
                                     height: dp(34)
                                     font_size: dp(16)
-                                    padding: ["0dp", "6dp", "2dp", "6dp"]
+                                    padding: ["0dp", "6dp", "0dp", "6dp"]
                                     halign: "right"
                                     input_filter: "float"
                                     on_text: root.sync_from_field("protein", self.text)
@@ -313,7 +441,7 @@
                                 size_hint_y: None
                                 width: dp(112)
                                 height: dp(36)
-                                padding: ["8dp", "0dp", "10dp", "0dp"]
+                                padding: ["6dp", "0dp", "4dp", "0dp"]
                                 spacing: "0dp"
                                 radius: [dp(8)]
                                 elevation: 0
@@ -332,7 +460,7 @@
                                     width: dp(64)
                                     height: dp(34)
                                     font_size: dp(16)
-                                    padding: ["0dp", "6dp", "2dp", "6dp"]
+                                    padding: ["0dp", "6dp", "0dp", "6dp"]
                                     halign: "right"
                                     input_filter: "float"
                                     on_text: root.sync_from_field("fat", self.text)
@@ -427,14 +555,21 @@
                     carbs_pct: root.draft_carbs_pct
                     fat_pct: root.draft_fat_pct
 
-                MDButton:
-                    style: "filled"
-                    size_hint_x: 1
-                    disabled: not root.can_save
-                    on_release: root.save_changes()
+                AnchorLayout:
+                    size_hint_y: None
+                    height: "52dp"
+                    anchor_x: "center"
+                    anchor_y: "center"
 
-                    MDButtonText:
-                        text: "Save"
+                    MDButton:
+                        style: "filled"
+                        size_hint_x: None
+                        width: dp(200)
+                        disabled: not root.can_save
+                        on_release: root.save_changes()
+
+                        MDButtonText:
+                            text: "Save"
 
 <GoalsScreen>:
     MDBoxLayout:
