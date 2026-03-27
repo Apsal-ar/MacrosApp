@@ -1,10 +1,12 @@
-"""Repository pattern — direct Supabase PostgreSQL CRUD for all domain entities.
+"""Repository pattern — Supabase PostgreSQL with local SQLite cache.
 
-All reads and writes go directly to the remote Supabase database.
-No local caching or offline support.
+Reads prefer the local SQLite cache (fast startup); a background thread
+refreshes from Supabase when data was served from cache. Writes go to the
+local store first, then to Supabase (write-through). If the remote write
+fails, the payload is queued in sync_queue for a future retry.
 
-Call Repository.set_client(supabase) once at app startup before any
-repository method is invoked.
+Call Repository.set_client(supabase) and Repository.set_local_store(store)
+once at app startup before any repository method is invoked.
 
 Domain repositories:
   ProfileRepository, GoalsRepository, FoodRepository,
@@ -15,9 +17,15 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 import uuid
 from typing import Any, Dict, List, Optional
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services.local_store import LocalStore
 
 from models.user import Profile, Goals
 from models.food import Food, NutritionInfo
@@ -40,6 +48,7 @@ class Repository:
     """
 
     _supabase: Optional[Any] = None
+    _local: Optional["LocalStore"] = None
 
     @classmethod
     def set_client(cls, client: Any) -> None:
@@ -49,6 +58,11 @@ class Repository:
             client: An initialised supabase-py Client instance (or None).
         """
         cls._supabase = client
+
+    @classmethod
+    def set_local_store(cls, store: Optional["LocalStore"]) -> None:
+        """Attach the local SQLite cache (or None to disable)."""
+        cls._local = store
 
     def _table(self, name: str) -> Optional[Any]:
         if self._supabase is None:
@@ -61,6 +75,73 @@ class Repository:
         return str(uuid.uuid4())
 
 
+def _spawn_bg(fn: Any) -> None:
+    threading.Thread(target=fn, daemon=True).start()
+
+
+def _queue_failed_sync(table: str, op: str, payload: Dict[str, Any]) -> None:
+    loc = Repository._local
+    if loc is not None:
+        try:
+            loc.enqueue_sync(table, op, payload)
+        except Exception:
+            pass
+
+
+_MEAL_ITEM_SELECT = (
+    "id, meal_id, food_id, quantity_g, updated_at, "
+    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
+)
+
+_RECIPE_ING_SELECT = (
+    "id, recipe_id, food_id, quantity_g, updated_at, "
+    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
+)
+
+
+def _pull_meals_for_date_to_local(profile_id: str, date: str) -> None:
+    """Fetch meals + items for a date from Supabase and write to LocalStore."""
+    loc = Repository._local
+    sb = Repository._supabase
+    if loc is None or sb is None:
+        return
+    tbl = sb.table("meals")
+    response = (
+        tbl.select("*")
+        .eq("profile_id", profile_id)
+        .eq("date", date)
+        .order("meal_number")
+        .execute()
+    )
+    for row in response.data:
+        loc.upsert_meal(row)
+    itbl = sb.table("meal_items")
+    for row in response.data:
+        mid = row["id"]
+        ir = itbl.select(_MEAL_ITEM_SELECT).eq("meal_id", mid).execute()
+        for item_row in ir.data:
+            loc.upsert_meal_item(item_row)
+    loc.mark_meal_date_fetched(profile_id, date)
+
+
+def _pull_recipes_for_profile_to_local(profile_id: str) -> None:
+    """Fetch recipes + ingredients from Supabase and write to LocalStore."""
+    loc = Repository._local
+    sb = Repository._supabase
+    if loc is None or sb is None:
+        return
+    tbl = sb.table("recipes")
+    response = tbl.select("*").eq("profile_id", profile_id).order("name").execute()
+    for row in response.data:
+        loc.upsert_recipe(row)
+        rid = row["id"]
+        itbl = sb.table("recipe_ingredients")
+        ir = itbl.select(_RECIPE_ING_SELECT).eq("recipe_id", rid).execute()
+        for ing_row in ir.data:
+            loc.upsert_recipe_ingredient(ing_row)
+    loc.set_recipes_list_fetched(profile_id)
+
+
 # ---------------------------------------------------------------------------
 # ProfileRepository
 # ---------------------------------------------------------------------------
@@ -70,20 +151,43 @@ class ProfileRepository(Repository):
 
     def get(self, profile_id: str) -> Optional[Profile]:
         """Fetch a single Profile by its UUID."""
+        loc = Repository._local
+        if loc is not None:
+            cached = loc.get_profile(profile_id)
+            if cached is not None:
+                tbl = self._table("profiles")
+                if tbl is not None:
+                    def refresh() -> None:
+                        try:
+                            resp = tbl.select("*").eq("id", profile_id).execute()
+                            if resp.data and Repository._local:
+                                Repository._local.upsert_profile(resp.data[0])
+                        except Exception as exc:  # pylint: disable=broad-except
+                            logger.debug("profile background refresh: %s", exc)
+
+                    _spawn_bg(refresh)
+                return self._row_to_profile(cached)
         tbl = self._table("profiles")
         if tbl is None:
             return None
         response = tbl.select("*").eq("id", profile_id).execute()
         if not response.data:
             return None
-        return self._row_to_profile(response.data[0])
+        row = response.data[0]
+        if loc is not None:
+            loc.upsert_profile(row)
+        return self._row_to_profile(row)
 
     def save(self, profile: Profile) -> None:
         """Upsert a Profile to Supabase."""
+        payload = self._profile_to_dict(profile)
+        loc = Repository._local
+        if loc is not None:
+            loc.upsert_profile(payload)
         tbl = self._table("profiles")
         if tbl is None:
+            _queue_failed_sync("profiles", "upsert", payload)
             return
-        payload = self._profile_to_dict(profile)
         try:
             tbl.upsert(payload).execute()
         except Exception as exc:  # pylint: disable=broad-except
@@ -95,9 +199,14 @@ class ProfileRepository(Repository):
                 f"'{col}'" in message and "profiles" in message for col in optional_cols
             )
             if not missing_optional_col:
+                _queue_failed_sync("profiles", "upsert", payload)
                 raise
             legacy_payload = {k: v for k, v in payload.items() if k not in optional_cols}
-            tbl.upsert(legacy_payload).execute()
+            try:
+                tbl.upsert(legacy_payload).execute()
+            except Exception:
+                _queue_failed_sync("profiles", "upsert", legacy_payload)
+                raise
             logger.warning(
                 "profiles table missing body-fat columns; saved profile without %s",
                 ", ".join(optional_cols),
