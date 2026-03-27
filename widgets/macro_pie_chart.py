@@ -13,6 +13,7 @@ from typing import List
 from kivy.clock import Clock
 from kivy.graphics import Color, Ellipse
 from kivy.lang import Builder
+from kivy.metrics import dp
 from kivy.properties import NumericProperty
 from kivymd.uix.boxlayout import MDBoxLayout
 
@@ -112,6 +113,10 @@ _COLOURS: List[tuple] = [
 ]
 _LABELS = ["Protein", "Carbs", "Fat"]
 
+# Angular gap between adjacent slices (degrees), plus slight radial "explode".
+_SEGMENT_GAP_DEG = 2.0
+_EXPLODE_DP = 4.0
+
 
 class MacroPieChart(MDBoxLayout):
     """Real-time pie chart showing macro percentage splits.
@@ -174,28 +179,35 @@ class MacroPieChart(MDBoxLayout):
 
         # Kivy Ellipse uses (x, y) = (r*sin(θ), r*cos(θ)) in normalized coords, so
         # θ = 0° is 12 o'clock (top), 90° is 3 o'clock — NOT the usual math convention.
-        start_angle = 0.0
         pct_norm = [round((pct / total) * 100) if total > 0 else 0 for pct in percentages]
         mid_angles: List[float] = []
+        gap_half = _SEGMENT_GAP_DEG / 2.0
+        explode = dp(_EXPLODE_DP)
 
         with canvas_widget.canvas:
+            cur = 0.0
             for i, pct in enumerate(percentages):
                 if pct <= 0:
-                    mid_angles.append(start_angle)
+                    mid_angles.append(cur)
                     continue
                 sweep = (pct / total) * 360.0
-                end_angle = start_angle + sweep
+                seg_start = cur + gap_half
+                seg_end = cur + sweep - gap_half
+                mid = (seg_start + seg_end) / 2.0
+                mid_angles.append(mid)
+
                 r, g, b, a = _COLOURS[i]
                 Color(r, g, b, a)
+                mid_rad = math.radians(mid)
+                edx = explode * math.sin(mid_rad)
+                edy = explode * math.cos(mid_rad)
                 Ellipse(
-                    pos=(cx - radius, cy - radius),
+                    pos=(cx + edx - radius, cy + edy - radius),
                     size=(diameter, diameter),
-                    angle_start=start_angle,
-                    angle_end=end_angle,
+                    angle_start=seg_start,
+                    angle_end=seg_end,
                 )
-                # Bisector of this sector in Kivy angle space (0° = top).
-                mid_angles.append(start_angle + (sweep / 2.0))
-                start_angle = end_angle
+                cur += sweep
 
             # Match app background in donut center.
             bg_r, bg_g, bg_b, bg_a = RGBA_BG
@@ -206,7 +218,7 @@ class MacroPieChart(MDBoxLayout):
                 size=(inner_r * 2, inner_r * 2),
             )
 
-        self._position_pct_labels(cx, cy, radius, mid_angles, pct_norm)
+        self._position_pct_labels(cx, cy, radius, mid_angles, pct_norm, explode)
         self._update_legend(percentages, total)
 
     def _update_legend(self, percentages: List[float], total: float) -> None:
@@ -232,11 +244,12 @@ class MacroPieChart(MDBoxLayout):
         radius: float,
         mid_angles: List[float],
         percentages: List[int],
+        explode: float,
     ) -> None:
         """Place white percentage labels on top of donut segments."""
         label_ids = ["pct_protein", "pct_carbs", "pct_fat"]
         inner_r = radius * 0.33
-        label_radius = (radius + inner_r) / 2.0
+        label_radius = (radius + inner_r) / 2.0 + explode
 
         # Fixed label dimensions — avoids texture_size timing issues
         label_w = 48
@@ -247,7 +260,7 @@ class MacroPieChart(MDBoxLayout):
             if lbl is None:
                 continue
             pct = percentages[i] if i < len(percentages) else 0
-            lbl.text = f"{pct}%"
+            lbl.text = f"{pct}"
             lbl.size = (label_w, label_h)
 
             # Match Kivy Ellipse: 0° = top, x = r*sin(θ), y = r*cos(θ)

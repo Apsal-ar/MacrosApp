@@ -14,7 +14,14 @@ from screens.base_screen import BaseScreen
 from services.macro_calculator import MacroCalculator
 from services.repository import GoalsRepository, ProfileRepository
 from models.user import Goals
-from utils.constants import KCAL_PER_G_CARBS, KCAL_PER_G_FAT, KCAL_PER_G_PROTEIN
+from utils.constants import (
+    COLOR_CARBS,
+    COLOR_FAT,
+    COLOR_PROTEIN,
+    KCAL_PER_G_CARBS,
+    KCAL_PER_G_FAT,
+    KCAL_PER_G_PROTEIN,
+)
 
 Builder.load_file("assets/kv/goals.kv")
 
@@ -69,9 +76,15 @@ class GoalsScreen(BaseScreen):
     protein_pct = NumericProperty(30.0)
     carbs_pct = NumericProperty(40.0)
     fat_pct = NumericProperty(30.0)
-    protein_breakdown_text = StringProperty("Protein\n— g\n— kcal")
-    carbs_breakdown_text = StringProperty("Carbohydrate\n— g\n— kcal")
-    fat_breakdown_text = StringProperty("Fat\n— g\n— kcal")
+    protein_breakdown_text = StringProperty(
+        f"[color={COLOR_PROTEIN}]Protein[/color]\n— g\n— kcal"
+    )
+    carbs_breakdown_text = StringProperty(
+        f"[color={COLOR_CARBS}]Carbohydrate[/color]\n— g\n— kcal"
+    )
+    fat_breakdown_text = StringProperty(
+        f"[color={COLOR_FAT}]Fat[/color]\n— g\n— kcal"
+    )
 
     _edit_sheet: Optional[EditMacrosSheet] = None
 
@@ -173,9 +186,13 @@ class GoalsScreen(BaseScreen):
     def _update_macro_breakdown(self, calorie_target: Optional[float]) -> None:
         """Refresh grams and kcal text per macro from current percentages."""
         if calorie_target is None or calorie_target <= 0:
-            self.protein_breakdown_text = "Protein\n— g\n— kcal"
-            self.carbs_breakdown_text = "Carbohydrate\n— g\n— kcal"
-            self.fat_breakdown_text = "Fat\n— g\n— kcal"
+            self.protein_breakdown_text = (
+                f"[color={COLOR_PROTEIN}]Protein[/color]\n— g\n— kcal"
+            )
+            self.carbs_breakdown_text = (
+                f"[color={COLOR_CARBS}]Carbohydrate[/color]\n— g\n— kcal"
+            )
+            self.fat_breakdown_text = f"[color={COLOR_FAT}]Fat[/color]\n— g\n— kcal"
             return
 
         protein_kcal = calorie_target * (self.protein_pct / 100.0)
@@ -187,13 +204,16 @@ class GoalsScreen(BaseScreen):
         fat_g = fat_kcal / KCAL_PER_G_FAT
 
         self.protein_breakdown_text = (
-            f"Protein\n{protein_g:.0f} g\n{protein_kcal:.0f} kcal"
+            f"[color={COLOR_PROTEIN}]Protein[/color]\n"
+            f"{protein_g:.0f} g\n{protein_kcal:.0f} kcal"
         )
         self.carbs_breakdown_text = (
-            f"Carbohydrate\n{carbs_g:.0f} g\n{carbs_kcal:.0f} kcal"
+            f"[color={COLOR_CARBS}]Carbohydrate[/color]\n"
+            f"{carbs_g:.0f} g\n{carbs_kcal:.0f} kcal"
         )
         self.fat_breakdown_text = (
-            f"Fat\n{fat_g:.0f} g\n{fat_kcal:.0f} kcal"
+            f"[color={COLOR_FAT}]Fat[/color]\n"
+            f"{fat_g:.0f} g\n{fat_kcal:.0f} kcal"
         )
 
     def _recalculate_calories(self, user_id: str) -> Optional[float]:
