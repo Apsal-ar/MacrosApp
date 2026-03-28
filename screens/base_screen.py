@@ -16,6 +16,8 @@ from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
 
+from utils.constants import RGBA_POPUP
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,6 +70,8 @@ class BaseScreen(MDScreen):
                     orientation="vertical",
                     padding=["0dp", "8dp", "0dp", "0dp"],
                 ),
+                theme_bg_color="Custom",
+                md_bg_color=RGBA_POPUP,
             )
             self._loading_dialog.open()
         except Exception as exc:  # pylint: disable=broad-except

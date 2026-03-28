@@ -62,6 +62,8 @@ from utils.constants import (
     GOAL_DESCRIPTIONS,
     GOAL_KEY_MIGRATION,
     GOAL_LABELS,
+    RGBA_LINE,
+    RGBA_POPUP,
 )
 from utils.unit_converter import UnitConverter
 
@@ -142,6 +144,8 @@ _KV = """
                         text: "Female"
 
                 MDDivider:
+                    theme_divider_color: "Custom"
+                    color: "#94A09F"
 
                 MDListItem:
                     on_release: root.select("male")
@@ -235,6 +239,8 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
+                        theme_divider_color: "Custom"
+                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("weight")
@@ -254,6 +260,8 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
+                        theme_divider_color: "Custom"
+                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("gender")
@@ -273,6 +281,8 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
+                        theme_divider_color: "Custom"
+                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("age")
@@ -292,6 +302,8 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
+                        theme_divider_color: "Custom"
+                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("activity")
@@ -311,6 +323,8 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
+                        theme_divider_color: "Custom"
+                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("goal")
@@ -409,6 +423,8 @@ _KV = """
                             shorten: True
 
                     MDDivider:
+                        theme_divider_color: "Custom"
+                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("neck")
@@ -427,6 +443,8 @@ _KV = """
                             shorten: True
 
                     MDDivider:
+                        theme_divider_color: "Custom"
+                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("hips")
@@ -806,6 +824,8 @@ def _show_range_popup(title: str, message: str) -> None:
             ),
             spacing="8dp",
         ),
+        theme_bg_color="Custom",
+        md_bg_color=RGBA_POPUP,
     )
     dlg_ref.append(dlg)
     dlg.open()
@@ -1395,6 +1415,8 @@ class BodyFatSheet(ModalView):
                 MDButton(MDButtonText(text="Set"), style="filled", on_release=_apply),
                 spacing="8dp",
             ),
+            theme_bg_color="Custom",
+            md_bg_color=RGBA_POPUP,
         )
         dlg_ref.append(dlg)
         dlg.open()
@@ -1646,6 +1668,8 @@ class EditProfileSheet(ModalView):
                 MDButton(MDButtonText(text="Set"), style="filled", on_release=_apply),
                 spacing="8dp",
             ),
+            theme_bg_color="Custom",
+            md_bg_color=RGBA_POPUP,
         )
         dlg_ref.append(dlg)
         dlg.open()
@@ -1717,6 +1741,8 @@ class EditProfileSheet(ModalView):
                 MDButton(MDButtonText(text="Set"), style="filled", on_release=_apply),
                 spacing="8dp",
             ),
+            theme_bg_color="Custom",
+            md_bg_color=RGBA_POPUP,
         )
         dlg_ref.append(dlg)
         dlg.open()
@@ -1830,7 +1856,9 @@ class BMISheet(ModalView):
             row.add_widget(cat_lbl)
             container.add_widget(row)
             if i < len(BMI_RANGES) - 1:
-                container.add_widget(MDDivider())
+                container.add_widget(
+                    MDDivider(theme_divider_color="Custom", color=RGBA_LINE)
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -1923,7 +1951,9 @@ class MealsSheet(ModalView):
             row.add_widget(field)
             container.add_widget(row)
             if i < self._meals_per_day:
-                container.add_widget(MDDivider())
+                container.add_widget(
+                    MDDivider(theme_divider_color="Custom", color=RGBA_LINE)
+                )
 
     def _save_and_dismiss(self) -> None:
         """Collect values, save to goals, dismiss."""

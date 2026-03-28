@@ -27,7 +27,11 @@ from services.repository import (
 )
 from models.meal import Meal, MealItem
 from models.food import Food
-from utils.constants import DEFAULT_MEAL_LABELS
+from utils.constants import (
+    DEFAULT_MEAL_LABELS,
+    RGBA_CALORIE_INDICATOR,
+    RGBA_CALORIE_TRACK,
+)
 from widgets.food_search_dialog import FoodSearchDialog
 from widgets.meal_card import MealCard
 
@@ -51,6 +55,7 @@ class TrackerScreen(BaseScreen):
         self._goals_protein: float = 150.0
         self._goals_carbs: float = 200.0
         self._goals_fat: float = 67.0
+        self._meals_per_day: int = 3
         self._active_dialog: Optional[FoodSearchDialog] = None
 
     # ------------------------------------------------------------------
@@ -78,7 +83,10 @@ class TrackerScreen(BaseScreen):
         Clock.schedule_once(self._load_day, 0)
 
     def _refresh_date_label(self) -> None:
-        self.ids.date_label.text = self._current_date.strftime("%A, %d %B %Y")
+        if self._current_date == date.today():
+            self.ids.date_label.text = "Today"
+        else:
+            self.ids.date_label.text = self._current_date.strftime("%A, %d %B %Y")
 
     # ------------------------------------------------------------------
     # Data loading
@@ -248,7 +256,15 @@ class TrackerScreen(BaseScreen):
             total_f += card._fat_total
 
         ids = self.ids
+        cbar = ids.progress_calories_bar
+        cbar.track_color = list(RGBA_CALORIE_TRACK)
+        cbar.indicator_color = list(RGBA_CALORIE_INDICATOR)
         ids.total_calories.text = f"{total_cal:.0f} / {self._goals_calorie:.0f} kcal"
+        goal_k = self._goals_calorie
+        if goal_k > 0:
+            cbar.value = min(100.0, (total_cal / goal_k) * 100.0)
+        else:
+            cbar.value = 0.0
         ids.progress_protein.consumed = total_p
         ids.progress_protein.target = self._goals_protein
         ids.progress_carbs.consumed = total_c

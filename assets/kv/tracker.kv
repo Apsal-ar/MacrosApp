@@ -1,4 +1,7 @@
 #:import MacroProgressBar widgets.macro_progress_bar.MacroProgressBar
+#:import RGBA_CALORIE_INDICATOR utils.constants.RGBA_CALORIE_INDICATOR
+#:import RGBA_CALORIE_TRACK utils.constants.RGBA_CALORIE_TRACK
+#:import dp kivy.metrics.dp
 
 <TrackerScreen>:
     MDBoxLayout:
@@ -43,8 +46,79 @@
                 on_release: root.go_next_day()
 
         MDDivider:
+            theme_divider_color: "Custom"
+            color: "#94A09F"
 
+        # ── Daily summary: macros (3 bars) + calories — fixed above meals ─
+        MDBoxLayout:
+            id: daily_summary
+            orientation: "vertical"
+            size_hint_y: None
+            height: self.minimum_height
+            padding: ["12dp", "12dp", "12dp", "8dp"]
+            spacing: "10dp"
+            md_bg_color: app.theme_cls.surfaceContainerLowColor
+
+            MDBoxLayout:
+                orientation: "horizontal"
+                spacing: "6dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                MacroProgressBar:
+                    id: progress_carbs
+                    size_hint_x: 1
+                    label: "Carbohydrate"
+                    consumed: 0
+                    target: 200
+
+                MacroProgressBar:
+                    id: progress_protein
+                    size_hint_x: 1
+                    label: "Protein"
+                    consumed: 0
+                    target: 150
+
+                MacroProgressBar:
+                    id: progress_fat
+                    size_hint_x: 1
+                    label: "Fat"
+                    consumed: 0
+                    target: 67
+
+            MDLinearProgressIndicator:
+                id: progress_calories_bar
+                size_hint_x: 1
+                value: 0
+                max: 100
+                size_hint_y: None
+                height: "8dp"
+                track_color: RGBA_CALORIE_TRACK
+                indicator_color: RGBA_CALORIE_INDICATOR
+                radius: [dp(4), dp(4), dp(4), dp(4)]
+
+            MDLabel:
+                id: total_calories
+                text: "0 / 0 kcal"
+                font_style: "Title"
+                role: "small"
+                halign: "center"
+                theme_text_color: "Custom"
+                text_color: app.theme_cls.primaryColor
+                size_hint_y: None
+                height: "36dp"
+
+        MDDivider:
+            theme_divider_color: "Custom"
+            color: "#94A09F"
+
+        # ── Meal cards (scroll) ───────────────────────────────────────
         MDScrollView:
+            size_hint_y: 1
+            bar_width: dp(6)
+            scroll_type: ["bars", "content"]
+            do_scroll_x: False
+
             MDBoxLayout:
                 orientation: "vertical"
                 padding: ["12dp", "8dp", "12dp", "16dp"]
@@ -52,58 +126,9 @@
                 size_hint_y: None
                 height: self.minimum_height
 
-                # ── Meal cards ─────────────────────────────────────────
                 MDBoxLayout:
                     id: meals_container
                     orientation: "vertical"
                     spacing: "12dp"
                     size_hint_y: None
                     height: self.minimum_height
-
-                # ── Daily totals ───────────────────────────────────────
-                MDCard:
-                    padding: ["12dp", "12dp", "12dp", "12dp"]
-                    radius: [dp(12)]
-                    elevation: 2
-                    size_hint_y: None
-                    height: self.minimum_height
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: "8dp"
-                        size_hint_y: None
-                        height: self.minimum_height
-
-                        MDLabel:
-                            text: "Daily Totals"
-                            font_style: "Title"
-                            role: "small"
-                            size_hint_y: None
-                            height: "28dp"
-
-                        MDLabel:
-                            id: total_calories
-                            text: "0 / 0 kcal"
-                            font_style: "Headline"
-                            role: "small"
-                            halign: "center"
-                            size_hint_y: None
-                            height: "36dp"
-
-                        MacroProgressBar:
-                            id: progress_protein
-                            label: "Protein"
-                            consumed: 0
-                            target: 150
-
-                        MacroProgressBar:
-                            id: progress_carbs
-                            label: "Carbs"
-                            consumed: 0
-                            target: 200
-
-                        MacroProgressBar:
-                            id: progress_fat
-                            label: "Fat"
-                            consumed: 0
-                            target: 67

@@ -19,7 +19,7 @@
                 theme_icon_color: "Custom"
                 icon_color: 1, 1, 1, 1
                 pos_hint: {"center_y": 0.5}
-                on_release: root.dismiss()
+                on_release: root.request_back()
 
             MDLabel:
                 text: "Caloric requirement"
@@ -355,8 +355,7 @@
                         size_hint_y: None
                         size_hint_x: 1
                         height: "1dp"
-                        md_bg_color: app.theme_cls.onSurfaceColor
-                        opacity: 0.22
+                        md_bg_color: "#94A09F"
 
                     MDBoxLayout:
                         size_hint_y: None
@@ -419,8 +418,7 @@
                         size_hint_y: None
                         size_hint_x: 1
                         height: "1dp"
-                        md_bg_color: app.theme_cls.onSurfaceColor
-                        opacity: 0.22
+                        md_bg_color: "#94A09F"
 
                     MDBoxLayout:
                         size_hint_y: None
@@ -483,8 +481,7 @@
                         size_hint_y: None
                         size_hint_x: 1
                         height: "1dp"
-                        md_bg_color: app.theme_cls.onSurfaceColor
-                        opacity: 0.22
+                        md_bg_color: "#94A09F"
 
                     MDBoxLayout:
                         size_hint_y: None

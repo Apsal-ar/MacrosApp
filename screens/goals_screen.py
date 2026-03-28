@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import time
 import types
-from typing import Optional
+from typing import Callable, Optional
 
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, NumericProperty, StringProperty
+from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.modalview import ModalView
 
 from screens.base_screen import BaseScreen
@@ -22,12 +23,171 @@ from utils.constants import (
     KCAL_PER_G_CARBS,
     KCAL_PER_G_FAT,
     KCAL_PER_G_PROTEIN,
+    RGBA_LINE,
+    RGBA_POPUP,
 )
+from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDButton
 from kivymd.uix.selectioncontrol import MDSwitch  # noqa: F401 — registers MDSwitch for KV
 
 from widgets.calorie_slider_track import CalorieSliderTrack  # noqa: F401 — registers CalorieSliderTrack for KV
 from widgets.macro_pie_chart import MacroPieChart  # noqa: F401 — registers MacroPieChart for KV
+
+
+class _SaveDialogActionRow(ButtonBehavior, MDBoxLayout):
+    """Full-width row tap target (no MDButton chrome or ripple)."""
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(orientation="horizontal", **kwargs)
+        self.theme_bg_color = "Custom"
+        self.md_bg_color = (0, 0, 0, 0)
+
+
+def _open_save_changes_dialog(
+    *,
+    on_save: Callable[[], None],
+    on_discard: Callable[[], None],
+) -> None:
+    """Unsaved-changes prompt: uniform type, full-row taps, no card hover tint."""
+    from kivy.core.window import Window
+    from kivy.metrics import dp
+    from kivy.uix.anchorlayout import AnchorLayout
+    from kivymd.app import MDApp
+    from kivymd.uix.card import MDCard
+    from kivymd.uix.divider import MDDivider
+    from kivymd.uix.label import MDLabel
+
+    app = MDApp.get_running_app()
+    primary = app.theme_cls.primaryColor
+
+    dlg_ref: list[ModalView] = []
+
+    def dismiss_then(fn: Callable[[], None]) -> Callable[..., None]:
+        def _wrapped(*_a: object) -> None:
+            dlg_ref[0].dismiss()
+            fn()
+
+        return _wrapped
+
+    def dismiss_dialog(*_a: object) -> None:
+        dlg_ref[0].dismiss()
+
+    card_w = min(dp(268), max(dp(208), Window.width - dp(72)))
+    # Horizontal padding 0 so dividers span full card width; inset text via row labels.
+    pad = [0, dp(4), 0, dp(4)]
+    dialog_fs = "16sp"
+
+    row_h = dp(40)
+    div_h = dp(0.5)
+
+    def row_shell() -> AnchorLayout:
+        return AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+            size_hint_y=None,
+            height=row_h,
+            size_hint_x=1,
+        )
+
+    def divider() -> MDDivider:
+        return MDDivider(
+            size_hint_x=1,
+            size_hint_y=None,
+            height=div_h,
+            theme_divider_color="Custom",
+            color=RGBA_LINE,
+            divider_width=div_h,
+        )
+
+    def action_row(label: str, on_release: Callable[..., None]) -> _SaveDialogActionRow:
+        row = _SaveDialogActionRow(
+            size_hint_y=None,
+            height=row_h,
+            size_hint_x=1,
+        )
+        lbl = MDLabel(
+            text=label,
+            halign="center",
+            valign="middle",
+            theme_text_color="Custom",
+            text_color=primary,
+            theme_font_size="Custom",
+            font_size=dialog_fs,
+            font_style="Body",
+            role="medium",
+            bold=True,
+            size_hint=(1, 1),
+            padding=[dp(12), 0, dp(12), 0],
+        )
+        lbl.bind(size=lambda inst, sz: setattr(inst, "text_size", (sz[0], sz[1])))
+        row.add_widget(lbl)
+        row.bind(on_release=lambda *_a: on_release())
+        return row
+
+    inner = MDBoxLayout(
+        orientation="vertical",
+        spacing=0,
+        size_hint_y=None,
+        size_hint_x=1,
+    )
+    inner.bind(minimum_height=inner.setter("height"))
+
+    # Row 1 — title (same height as actions; text centered in row)
+    r_title = row_shell()
+    title_lbl = MDLabel(
+        text="Save changes?",
+        halign="center",
+        valign="middle",
+        font_style="Body",
+        role="medium",
+        theme_font_size="Custom",
+        font_size=dialog_fs,
+        theme_text_color="Custom",
+        text_color=(1, 1, 1, 1),
+        size_hint=(1, 1),
+        padding=[dp(12), dp(1), dp(12), dp(1)],
+    )
+    title_lbl.bind(size=lambda inst, sz: setattr(inst, "text_size", (sz[0], sz[1])))
+    r_title.add_widget(title_lbl)
+    inner.add_widget(r_title)
+    inner.add_widget(divider())
+    inner.add_widget(action_row("Save", dismiss_then(on_save)))
+    inner.add_widget(divider())
+    inner.add_widget(action_row("Don't save", dismiss_then(on_discard)))
+    inner.add_widget(divider())
+    inner.add_widget(action_row("Cancel", dismiss_dialog))
+
+    card = MDCard(
+        orientation="vertical",
+        padding=pad,
+        size_hint=(None, None),
+        width=card_w,
+        radius=[dp(8), dp(8), dp(8), dp(8)],
+        theme_bg_color="Custom",
+        md_bg_color=RGBA_POPUP,
+        elevation=0,
+        ripple_behavior=False,
+        focus_behavior=False,
+    )
+    card.add_widget(inner)
+
+    def _sync_card_height(*_a: object) -> None:
+        card.height = inner.minimum_height + pad[1] + pad[3]
+
+    inner.bind(minimum_height=_sync_card_height)
+    _sync_card_height()
+
+    anchor = AnchorLayout(anchor_x="center", anchor_y="center")
+    anchor.add_widget(card)
+
+    view = ModalView(
+        size_hint=(1, 1),
+        background_color=[0, 0, 0, 0.5],
+        auto_dismiss=True,
+    )
+    view.add_widget(anchor)
+    dlg_ref.append(view)
+    view.open()
 
 
 class EditCalorieTargetSheet(ModalView):
@@ -49,6 +209,8 @@ class EditCalorieTargetSheet(ModalView):
         self._gs = goals_screen
         self._populating = False
         self._syncing_field = False
+        self._initial_adjustment_pct = 0.0
+        self._initial_use_recommended = True
 
     def populate(self) -> None:
         """Load TDEE, recommended kcal, and derive slider from saved target."""
@@ -87,6 +249,8 @@ class EditCalorieTargetSheet(ModalView):
 
         self._populating = False
         self._refresh_labels()
+        self._initial_adjustment_pct = float(self.adjustment_pct)
+        self._initial_use_recommended = bool(self.use_recommended)
         Clock.schedule_once(self._style_slider, 0)
         Clock.schedule_once(self._patch_save_button_label_center, 0.25)
 
@@ -239,6 +403,26 @@ class EditCalorieTargetSheet(ModalView):
         else:
             self._refresh_labels()
             Clock.schedule_once(self._focus_kcal_field, 0.2)
+
+    def _is_dirty(self) -> bool:
+        """True if slider / recommended toggle / kcal field differ from last populate."""
+        if self._populating:
+            return False
+        if self.use_recommended != self._initial_use_recommended:
+            return True
+        if abs(float(self.adjustment_pct) - float(self._initial_adjustment_pct)) > 0.51:
+            return True
+        return False
+
+    def request_back(self) -> None:
+        """Back arrow: dismiss if unchanged, else confirm save/discard."""
+        if not self._is_dirty():
+            self.dismiss()
+            return
+        _open_save_changes_dialog(
+            on_save=self.save_calories,
+            on_discard=self.dismiss,
+        )
 
     def save_calories(self) -> None:
         """Persist computed daily kcal."""
@@ -532,6 +716,8 @@ class EditMacrosSheet(ModalView):
                 orientation="vertical",
                 spacing="8dp",
             ),
+            theme_bg_color="Custom",
+            md_bg_color=RGBA_POPUP,
         )
         dlg_ref.append(dlg)
         dlg.open()
@@ -576,47 +762,10 @@ class EditMacrosSheet(ModalView):
         if not self._is_dirty():
             self.dismiss()
             return
-        from kivymd.uix.button import MDButton, MDButtonText  # noqa: PLC0415
-        from kivymd.uix.dialog import (  # noqa: PLC0415
-            MDDialog,
-            MDDialogButtonContainer,
-            MDDialogHeadlineText,
+        _open_save_changes_dialog(
+            on_save=self.save_changes,
+            on_discard=self.dismiss,
         )
-
-        dlg_ref: list = []
-
-        def do_save(*_a: object) -> None:
-            dlg_ref[0].dismiss()
-            self.save_changes()
-
-        def do_discard(*_a: object) -> None:
-            dlg_ref[0].dismiss()
-            self.dismiss()
-
-        dlg = MDDialog(
-            MDDialogHeadlineText(text="Save changes?"),
-            MDDialogButtonContainer(
-                MDButton(
-                    MDButtonText(text="Save"),
-                    style="filled",
-                    on_release=do_save,
-                ),
-                MDButton(
-                    MDButtonText(text="Don't save"),
-                    style="filled",
-                    on_release=do_discard,
-                ),
-                MDButton(
-                    MDButtonText(text="Cancel"),
-                    style="text",
-                    on_release=lambda *_a: dlg_ref[0].dismiss(),
-                ),
-                orientation="vertical",
-                spacing="8dp",
-            ),
-        )
-        dlg_ref.append(dlg)
-        dlg.open()
 
     def save_changes(self) -> None:
         """Validate inputs and persist macro split (% always stored remotely)."""

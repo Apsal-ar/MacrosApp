@@ -53,6 +53,8 @@ Builder.load_string("""
             halign: "right"
 
     MDDivider:
+        theme_divider_color: "Custom"
+        color: "#94A09F"
 
     MDBoxLayout:
         id: items_container

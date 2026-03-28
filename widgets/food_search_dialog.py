@@ -24,6 +24,7 @@ from kivymd.uix.list import MDListItem, MDListItemHeadlineText, MDListItemSuppor
 from models.food import Food, NutritionInfo
 from services.food_service import FoodService
 from services.barcode_service import BarcodeService
+from utils.constants import RGBA_POPUP
 
 Builder.load_string("""
 <FoodSearchContent>:
@@ -299,6 +300,8 @@ class FoodSearchDialog:
             buttons=[
                 # Close button injected via kv or code if needed
             ],
+            theme_bg_color="Custom",
+            md_bg_color=RGBA_POPUP,
         )
 
     def open(self) -> None:

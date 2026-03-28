@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 # App color palette (hex and 0–1 RGBA)
 # ---------------------------------------------------------------------------
 COLOR_BG: str = "#121212"           # main background (black)
-COLOR_SURFACE: str = "#212F3C"      # cards, sections (dark grey)
+COLOR_SURFACE: str = "#18191A"      # cards, sections (dark grey)
 COLOR_PRIMARY: str = "#009688"      # teal — headers, accents, values
 COLOR_FAT: str = "#FFB93B"          # fat (quantities, pie, bars)
 COLOR_CARBS: str = "#EC253F"        # carbs
@@ -27,10 +27,34 @@ def hex_to_rgba(hex_str: str, alpha: float = 1.0) -> List[float]:
 # Precomputed RGBA for Kivy
 RGBA_BG: List[float] = hex_to_rgba(COLOR_BG)
 RGBA_SURFACE: List[float] = hex_to_rgba(COLOR_SURFACE)
+# Dialogs, modal prompts, and small popup cards (#212F3C — same as COLOR_SURFACE)
+COLOR_POPUP: str = COLOR_SURFACE
+RGBA_POPUP: List[float] = RGBA_SURFACE
 RGBA_PRIMARY: List[float] = hex_to_rgba(COLOR_PRIMARY)
 RGBA_FAT: List[float] = hex_to_rgba(COLOR_FAT)
 RGBA_CARBS: List[float] = hex_to_rgba(COLOR_CARBS)
 RGBA_PROTEIN: List[float] = hex_to_rgba(COLOR_PROTEIN)
+
+
+def rgba_with_alpha(rgba: List[float], alpha: float) -> List[float]:
+    """Same RGB as ``rgba`` (first three components), new alpha."""
+    return [rgba[0], rgba[1], rgba[2], alpha]
+
+
+# Progress bars: faint track, slightly stronger fill (same hue as macro / calorie colour)
+PROGRESS_TRACK_ALPHA: float = 0.22
+PROGRESS_INDICATOR_ALPHA: float = 0.58
+
+# Calorie summary bar (protein colour) — precomputed for KV defaults so the bar is
+# visible before Python assigns colours (e.g. tracker loads before user_id / totals).
+RGBA_CALORIE_TRACK: List[float] = rgba_with_alpha(RGBA_PROTEIN, PROGRESS_TRACK_ALPHA)
+RGBA_CALORIE_INDICATOR: List[float] = rgba_with_alpha(
+    RGBA_PROTEIN, PROGRESS_INDICATOR_ALPHA
+)
+
+# Divider / rule lines (MDDivider, 1dp separators)
+COLOR_LINE: str = "#94A09F"
+RGBA_LINE: List[float] = hex_to_rgba(COLOR_LINE)
 
 # ---------------------------------------------------------------------------
 # Physical Activity Level multipliers
