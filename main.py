@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from typing import Optional
 
 # Kivy must be configured before any other kivy imports
@@ -27,6 +28,8 @@ from kivymd.uix.boxlayout import MDBoxLayout                   # noqa: E402
 
 import config                                                   # noqa: E402
 from services.repository import Repository                      # noqa: E402
+from sync.cache_db import CacheDB                               # noqa: E402
+from sync.sync_manager import SyncManager                        # noqa: E402
 from utils.constants import (                                    # noqa: E402
     COLOR_PRIMARY,
     RGBA_BG,
@@ -208,9 +211,17 @@ class MacroTrackerApp(MDApp):
         self.theme_cls.primary_palette = COLOR_PRIMARY
         self.theme_cls.theme_style = "Dark"
 
-        # Initialise Supabase client and make it available to all repositories
+        cache_path = os.path.join(self.user_data_dir, "macros_cache.sqlite3")
+        self._cache = CacheDB.get_instance(cache_path)
+        Repository.set_cache(self._cache)
+
+        # Supabase client (remote sync only; UI reads SQLite via repositories)
         self._supabase = self._init_supabase()
         Repository.set_client(self._supabase)
+
+        self._sync: Optional[SyncManager] = None
+        if self._supabase is not None:
+            self._sync = SyncManager.init_instance(self._supabase, self._cache)
 
         root_sm = ScreenManager(transition=SlideTransition())
         root_sm.add_widget(LoginScreen())
@@ -351,30 +362,62 @@ class MacroTrackerApp(MDApp):
         user_id: str,
         login_screen: Optional[LoginScreen] = None,
     ) -> None:
-        """Called after successful auth — bootstrap profile and navigate.
-
-        Args:
-            user_id: Authenticated user's UUID.
-            login_screen: The LoginScreen widget, or None when auto-logging in.
-        """
+        """Called after successful auth — sync cache if needed, bootstrap profile, navigate."""
         self.current_user_id = user_id
         if login_screen is not None:
             login_screen.ids.error_label.text = ""
 
+        self._cache.set_active_user(user_id)
+        if self._sync is not None:
+            self._sync.set_profile_id(user_id)
+
+        empty = self._cache.is_cache_empty_for_user(user_id)
+        blocking = empty and self._supabase is not None and self._sync is not None
+
+        if blocking:
+            if login_screen is not None:
+                login_screen.ids.error_label.text = "Syncing data…"
+
+            def work() -> None:
+                try:
+                    self._sync.full_sync()
+                except Exception as exc:  # pylint: disable=broad-except
+                    logger.debug("Initial full_sync: %s", exc)
+                Clock.schedule_once(
+                    lambda _dt: self._complete_auth_startup(login_screen, user_id, False),
+                    0,
+                )
+
+            threading.Thread(target=work, daemon=True).start()
+            return
+
+        self._complete_auth_startup(login_screen, user_id, True)
+
+    def _complete_auth_startup(
+        self,
+        login_screen: Optional[LoginScreen],
+        user_id: str,
+        background_full_sync: bool,
+    ) -> None:
+        """Bootstrap profile, go to tracker, periodic sync; optional background full_sync."""
+        if login_screen is not None:
+            login_screen.ids.error_label.text = ""
         try:
             self._ensure_profile_exists(user_id)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Profile bootstrap skipped: %s", exc)
 
-        # Navigate to app shell (no-op if already there)
         self.root.current = "app"
-
-        # Always land on the logging tab
         try:
             app_shell = self.root.get_screen("app")
             app_shell.ids.inner_sm.current = "tracker"
         except Exception:  # pylint: disable=broad-except
             pass
+
+        if self._sync is not None:
+            self._sync.schedule(30.0)
+            if background_full_sync and self._supabase is not None:
+                threading.Thread(target=self._sync.full_sync, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Session persistence

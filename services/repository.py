@@ -1,38 +1,42 @@
-"""Repository pattern — Supabase PostgreSQL with local SQLite cache.
+"""Repository pattern — SQLite cache first; Supabase via SyncManager (background).
 
-Reads prefer the local SQLite cache (fast startup); a background thread
-refreshes from Supabase when data was served from cache. Writes go to the
-local store first, then to Supabase (write-through). If the remote write
-fails, the payload is queued in sync_queue for a future retry.
+Screens read/write SQLite through repositories only. Remote sync is async.
 
-Call Repository.set_client(supabase) and Repository.set_local_store(store)
-once at app startup before any repository method is invoked.
-
-Domain repositories:
-  ProfileRepository, GoalsRepository, FoodRepository,
-  MealRepository, MealItemRepository, RecipeRepository
+Call Repository.set_client(supabase) and Repository.set_cache(cache) at startup.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from services.local_store import LocalStore
+    from sync.cache_db import CacheDB
 
 from models.user import Profile, Goals
 from models.food import Food, NutritionInfo
 from models.meal import Meal, MealItem
 from models.recipe import Recipe, RecipeIngredient
+from sync.sync_manager import trigger_flush_async
 
 logger = logging.getLogger(__name__)
+
+
+def _food_payload_to_join(fd: Dict[str, Any]) -> Dict[str, Any]:
+    """Shape stored meal_items/recipe_ingredients `foods` FK join for row parsers."""
+    return {
+        "name": fd.get("name"),
+        "calories": fd.get("calories"),
+        "protein_g": fd.get("protein_g"),
+        "carbs_g": fd.get("carbs_g"),
+        "fat_g": fd.get("fat_g"),
+        "fiber_g": fd.get("fiber_g"),
+        "sugar_g": fd.get("sugar_g"),
+        "sodium_mg": fd.get("sodium_mg"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -40,29 +44,23 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class Repository:
-    """Abstract base providing the shared Supabase client reference.
-
-    Subclasses call self._table(name) to obtain a Supabase table handle.
-    If the client has not been initialised, all reads return empty/None and
-    all writes are silently skipped.
-    """
+    """Shared Supabase client (for sync only) + local CacheDB (all reads/writes)."""
 
     _supabase: Optional[Any] = None
-    _local: Optional["LocalStore"] = None
+    _cache: Optional["CacheDB"] = None
 
     @classmethod
     def set_client(cls, client: Any) -> None:
-        """Attach the Supabase client for all repositories.
-
-        Args:
-            client: An initialised supabase-py Client instance (or None).
-        """
         cls._supabase = client
 
     @classmethod
-    def set_local_store(cls, store: Optional["LocalStore"]) -> None:
-        """Attach the local SQLite cache (or None to disable)."""
-        cls._local = store
+    def set_cache(cls, cache: Optional["CacheDB"]) -> None:
+        cls._cache = cache
+
+    @classmethod
+    def set_local_store(cls, cache: Optional["CacheDB"]) -> None:
+        """Backward-compatible alias for set_cache."""
+        cls._cache = cache
 
     def _table(self, name: str) -> Optional[Any]:
         if self._supabase is None:
@@ -71,75 +69,7 @@ class Repository:
 
     @staticmethod
     def new_id() -> str:
-        """Generate a new UUID v4 string for use as a primary key."""
         return str(uuid.uuid4())
-
-
-def _spawn_bg(fn: Any) -> None:
-    threading.Thread(target=fn, daemon=True).start()
-
-
-def _queue_failed_sync(table: str, op: str, payload: Dict[str, Any]) -> None:
-    loc = Repository._local
-    if loc is not None:
-        try:
-            loc.enqueue_sync(table, op, payload)
-        except Exception:
-            pass
-
-
-_MEAL_ITEM_SELECT = (
-    "id, meal_id, food_id, quantity_g, updated_at, "
-    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
-)
-
-_RECIPE_ING_SELECT = (
-    "id, recipe_id, food_id, quantity_g, updated_at, "
-    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
-)
-
-
-def _pull_meals_for_date_to_local(profile_id: str, date: str) -> None:
-    """Fetch meals + items for a date from Supabase and write to LocalStore."""
-    loc = Repository._local
-    sb = Repository._supabase
-    if loc is None or sb is None:
-        return
-    tbl = sb.table("meals")
-    response = (
-        tbl.select("*")
-        .eq("profile_id", profile_id)
-        .eq("date", date)
-        .order("meal_number")
-        .execute()
-    )
-    for row in response.data:
-        loc.upsert_meal(row)
-    itbl = sb.table("meal_items")
-    for row in response.data:
-        mid = row["id"]
-        ir = itbl.select(_MEAL_ITEM_SELECT).eq("meal_id", mid).execute()
-        for item_row in ir.data:
-            loc.upsert_meal_item(item_row)
-    loc.mark_meal_date_fetched(profile_id, date)
-
-
-def _pull_recipes_for_profile_to_local(profile_id: str) -> None:
-    """Fetch recipes + ingredients from Supabase and write to LocalStore."""
-    loc = Repository._local
-    sb = Repository._supabase
-    if loc is None or sb is None:
-        return
-    tbl = sb.table("recipes")
-    response = tbl.select("*").eq("profile_id", profile_id).order("name").execute()
-    for row in response.data:
-        loc.upsert_recipe(row)
-        rid = row["id"]
-        itbl = sb.table("recipe_ingredients")
-        ir = itbl.select(_RECIPE_ING_SELECT).eq("recipe_id", rid).execute()
-        for ing_row in ir.data:
-            loc.upsert_recipe_ingredient(ing_row)
-    loc.set_recipes_list_fetched(profile_id)
 
 
 # ---------------------------------------------------------------------------
@@ -150,67 +80,24 @@ class ProfileRepository(Repository):
     """CRUD for the profiles table."""
 
     def get(self, profile_id: str) -> Optional[Profile]:
-        """Fetch a single Profile by its UUID."""
-        loc = Repository._local
-        if loc is not None:
-            cached = loc.get_profile(profile_id)
-            if cached is not None:
-                tbl = self._table("profiles")
-                if tbl is not None:
-                    def refresh() -> None:
-                        try:
-                            resp = tbl.select("*").eq("id", profile_id).execute()
-                            if resp.data and Repository._local:
-                                Repository._local.upsert_profile(resp.data[0])
-                        except Exception as exc:  # pylint: disable=broad-except
-                            logger.debug("profile background refresh: %s", exc)
-
-                    _spawn_bg(refresh)
-                return self._row_to_profile(cached)
-        tbl = self._table("profiles")
-        if tbl is None:
+        """Read profile from SQLite cache only."""
+        cache = Repository._cache
+        if cache is None:
             return None
-        response = tbl.select("*").eq("id", profile_id).execute()
-        if not response.data:
+        cached = cache.get_profile(profile_id)
+        if cached is None:
             return None
-        row = response.data[0]
-        if loc is not None:
-            loc.upsert_profile(row)
-        return self._row_to_profile(row)
+        return self._row_to_profile(cached)
 
     def save(self, profile: Profile) -> None:
-        """Upsert a Profile to Supabase."""
+        """Write profile to cache, enqueue sync, flush in background."""
         payload = self._profile_to_dict(profile)
-        loc = Repository._local
-        if loc is not None:
-            loc.upsert_profile(payload)
-        tbl = self._table("profiles")
-        if tbl is None:
-            _queue_failed_sync("profiles", "upsert", payload)
+        cache = Repository._cache
+        if cache is None:
             return
-        try:
-            tbl.upsert(payload).execute()
-        except Exception as exc:  # pylint: disable=broad-except
-            # Backward-compatibility fallback for remote schemas that have not
-            # yet added body-fat columns.
-            message = str(exc)
-            optional_cols = ("waist_cm", "neck_cm", "hips_cm", "body_fat_pct")
-            missing_optional_col = any(
-                f"'{col}'" in message and "profiles" in message for col in optional_cols
-            )
-            if not missing_optional_col:
-                _queue_failed_sync("profiles", "upsert", payload)
-                raise
-            legacy_payload = {k: v for k, v in payload.items() if k not in optional_cols}
-            try:
-                tbl.upsert(legacy_payload).execute()
-            except Exception:
-                _queue_failed_sync("profiles", "upsert", legacy_payload)
-                raise
-            logger.warning(
-                "profiles table missing body-fat columns; saved profile without %s",
-                ", ".join(optional_cols),
-            )
+        cache.upsert_profile(payload, from_remote=False)
+        cache.enqueue_sync("profiles", "upsert", profile.id, payload)
+        trigger_flush_async()
 
     def _profile_to_dict(self, p: Profile) -> Dict[str, Any]:
         return {
@@ -258,36 +145,24 @@ class GoalsRepository(Repository):
     """CRUD for the goals table."""
 
     def get_for_profile(self, profile_id: str) -> Optional[Goals]:
-        """Fetch the most recent Goals record for a given profile."""
-        tbl = self._table("goals")
-        if tbl is None:
+        """Read goals from SQLite cache only."""
+        cache = Repository._cache
+        if cache is None:
             return None
-        response = (
-            tbl.select("*")
-            .eq("profile_id", profile_id)
-            .order("updated_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if not response.data:
+        cached = cache.get_goals_for_profile(profile_id)
+        if cached is None:
             return None
-        return self._row_to_goals(response.data[0])
+        return self._row_to_goals(cached)
 
     def save(self, goals: Goals) -> None:
-        """Upsert a Goals record to Supabase."""
-        tbl = self._table("goals")
-        if tbl is None:
+        """Write goals to cache, enqueue sync."""
+        cache = Repository._cache
+        if cache is None:
             return
         payload = self._goals_to_dict(goals)
-        try:
-            tbl.upsert(payload).execute()
-        except Exception as exc:  # pylint: disable=broad-except
-            if "meal_labels" in str(exc) and "schema" in str(exc).lower():
-                payload.pop("meal_labels", None)
-                tbl.upsert(payload).execute()
-                logger.warning("goals table missing meal_labels column; saved without it")
-            else:
-                raise
+        cache.upsert_goals(payload, from_remote=False)
+        cache.enqueue_sync("goals", "upsert", goals.id, payload)
+        trigger_flush_async()
 
     def _goals_to_dict(self, g: Goals) -> Dict[str, Any]:
         out = {
@@ -336,80 +211,76 @@ class GoalsRepository(Repository):
 # ---------------------------------------------------------------------------
 
 class FoodRepository(Repository):
-    """CRUD and search for the foods table."""
+    """CRUD and search for the foods table (SQLite cache; sync via SyncManager)."""
 
     def get(self, food_id: str) -> Optional[Food]:
-        """Fetch a single Food by its UUID."""
-        tbl = self._table("foods")
-        if tbl is None:
+        """Fetch a single Food from the local cache."""
+        cache = Repository._cache
+        if cache is None:
             return None
-        response = tbl.select("*").eq("id", food_id).execute()
-        if not response.data:
+        row = cache.get_food(food_id)
+        if row is None:
             return None
-        return self._row_to_food(response.data[0])
+        return self._row_to_food(row)
 
     def get_by_barcode(self, barcode: str) -> Optional[Food]:
-        """Look up a food by its EAN-13/UPC-A barcode."""
-        tbl = self._table("foods")
-        if tbl is None:
+        """Look up a food by barcode in the local cache."""
+        cache = Repository._cache
+        if cache is None:
             return None
-        response = tbl.select("*").eq("barcode", barcode).limit(1).execute()
-        if not response.data:
-            return None
-        return self._row_to_food(response.data[0])
+        for row in cache.get_all_food_payloads():
+            if row.get("barcode") == barcode:
+                return self._row_to_food(row)
+        return None
 
     def search(self, query: str, profile_id: Optional[str] = None, limit: int = 20) -> List[Food]:
-        """Search foods by name/brand with optional user-scoping.
-
-        When profile_id is provided, results are filtered client-side to only
-        include Open Food Facts entries and the user's own manual foods.
-        """
-        tbl = self._table("foods")
-        if tbl is None:
+        """Search cached foods by name/brand (substring match, case-insensitive)."""
+        cache = Repository._cache
+        if cache is None:
             return []
-        pattern = f"%{query}%"
-        response = (
-            tbl.select("*")
-            .or_(f"name.ilike.{pattern},brand.ilike.{pattern}")
-            .order("name")
-            .limit(100)
-            .execute()
-        )
-        foods = [self._row_to_food(r) for r in response.data]
-        if profile_id:
-            foods = [
-                f for f in foods
-                if f.source == "openfoodfacts" or f.created_by == profile_id
-            ]
+        q = (query or "").strip().lower()
+        if not q:
+            return []
+        foods: List[Food] = []
+        for row in cache.get_all_food_payloads():
+            name = (row.get("name") or "").lower()
+            brand = (row.get("brand") or "").lower()
+            if q not in name and q not in brand:
+                continue
+            f = self._row_to_food(row)
+            if profile_id:
+                if f.source != "openfoodfacts" and f.created_by != profile_id:
+                    continue
+            foods.append(f)
+        foods.sort(key=lambda x: (x.name or "").lower())
         return foods[:limit]
 
     def get_manual_foods(self, profile_id: str) -> List[Food]:
-        """Return all user-created manual foods for a profile."""
-        tbl = self._table("foods")
-        if tbl is None:
+        """Return all user-created manual foods from the cache."""
+        cache = Repository._cache
+        if cache is None:
             return []
-        response = (
-            tbl.select("*")
-            .eq("source", "manual")
-            .eq("created_by", profile_id)
-            .order("name")
-            .execute()
-        )
-        return [self._row_to_food(r) for r in response.data]
+        rows = cache.get_manual_foods_local(profile_id)
+        return [self._row_to_food(r) for r in rows]
 
     def save(self, food: Food) -> None:
-        """Upsert a Food record to Supabase."""
-        tbl = self._table("foods")
-        if tbl is None:
+        """Upsert food in cache, enqueue sync."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.upsert(self._food_to_dict(food)).execute()
+        payload = self._food_to_dict(food)
+        cache.upsert_food(payload, from_remote=False)
+        cache.enqueue_sync("foods", "upsert", food.id, payload)
+        trigger_flush_async()
 
     def delete(self, food_id: str) -> None:
-        """Delete a Food record from Supabase."""
-        tbl = self._table("foods")
-        if tbl is None:
+        """Delete from cache and enqueue remote delete."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.delete().eq("id", food_id).execute()
+        cache.delete_food(food_id)
+        cache.enqueue_sync("foods", "delete", food_id, {"id": food_id})
+        trigger_flush_async()
 
     def _food_to_dict(self, f: Food) -> Dict[str, Any]:
         n = f.nutrition
@@ -460,49 +331,31 @@ class FoodRepository(Repository):
 # ---------------------------------------------------------------------------
 
 class MealRepository(Repository):
-    """CRUD for the meals table."""
+    """CRUD for the meals table (cache-first)."""
 
     def get_meals_for_date(self, profile_id: str, date: str) -> List[Meal]:
-        """Fetch all meal slots for a given profile and date."""
-        tbl = self._table("meals")
-        if tbl is None:
+        """Fetch all meal slots for a given profile and date from cache."""
+        cache = Repository._cache
+        if cache is None:
             return []
-        response = (
-            tbl.select("*")
-            .eq("profile_id", profile_id)
-            .eq("date", date)
-            .order("meal_number")
-            .execute()
-        )
-        return [self._row_to_meal(r) for r in response.data]
+        rows = cache.get_meals_for_date_rows(profile_id, date)
+        return [self._row_to_meal(r) for r in rows]
 
     def get_all_meals(self, profile_id: str) -> List[Meal]:
-        """Fetch every meal for a profile, ordered by date and slot."""
-        tbl = self._table("meals")
-        if tbl is None:
+        """Fetch every meal for a profile from cache."""
+        cache = Repository._cache
+        if cache is None:
             return []
-        response = (
-            tbl.select("*")
-            .eq("profile_id", profile_id)
-            .order("date")
-            .order("meal_number")
-            .execute()
-        )
-        return [self._row_to_meal(r) for r in response.data]
+        rows = cache.get_all_meals_for_profile_rows(profile_id)
+        return [self._row_to_meal(r) for r in rows]
 
     def get_or_create(self, profile_id: str, date: str, meal_number: int, label: str) -> Meal:
         """Return an existing meal slot or create one if it doesn't exist."""
-        tbl = self._table("meals")
-        if tbl is not None:
-            response = (
-                tbl.select("*")
-                .eq("profile_id", profile_id)
-                .eq("date", date)
-                .eq("meal_number", meal_number)
-                .execute()
-            )
-            if response.data:
-                return self._row_to_meal(response.data[0])
+        cache = Repository._cache
+        if cache is not None:
+            for row in cache.get_meals_for_date_rows(profile_id, date):
+                if int(row.get("meal_number") or 0) == int(meal_number):
+                    return self._row_to_meal(row)
         meal = Meal(
             id=self.new_id(),
             profile_id=profile_id,
@@ -515,18 +368,23 @@ class MealRepository(Repository):
         return meal
 
     def save(self, meal: Meal) -> None:
-        """Upsert a Meal record to Supabase."""
-        tbl = self._table("meals")
-        if tbl is None:
+        """Upsert meal in cache, enqueue sync."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.upsert(self._meal_to_dict(meal)).execute()
+        payload = self._meal_to_dict(meal)
+        cache.upsert_meal(payload, from_remote=False)
+        cache.enqueue_sync("meals", "upsert", meal.id, payload)
+        trigger_flush_async()
 
     def delete(self, meal_id: str) -> None:
-        """Delete a Meal from Supabase (cascade to meal_items via FK)."""
-        tbl = self._table("meals")
-        if tbl is None:
+        """Delete meal (and cached items) locally, enqueue remote delete."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.delete().eq("id", meal_id).execute()
+        cache.delete_meal(meal_id)
+        cache.enqueue_sync("meals", "delete", meal_id, {"id": meal_id})
+        trigger_flush_async()
 
     def _meal_to_dict(self, m: Meal) -> Dict[str, Any]:
         return {
@@ -555,38 +413,48 @@ class MealRepository(Repository):
 # ---------------------------------------------------------------------------
 
 class MealItemRepository(Repository):
-    """CRUD for the meal_items table with denormalised food data."""
-
-    _ITEM_SELECT = (
-        "id, meal_id, food_id, quantity_g, updated_at, "
-        "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
-    )
+    """CRUD for the meal_items table with denormalised food data from cache."""
 
     def get_items_for_meal(self, meal_id: str) -> List[MealItem]:
-        """Fetch all food entries for a meal, with nutrition from a FK join."""
-        tbl = self._table("meal_items")
-        if tbl is None:
+        """Fetch meal items from cache; join food nutrition from cached foods."""
+        cache = Repository._cache
+        if cache is None:
             return []
-        response = (
-            tbl.select(self._ITEM_SELECT)
-            .eq("meal_id", meal_id)
-            .execute()
-        )
-        return [self._row_to_item(r) for r in response.data]
+        rows = cache.get_meal_items_for_meal(meal_id)
+        return [self._row_to_item(self._enrich_item_row(r)) for r in rows]
+
+    def _enrich_item_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        if row.get("foods"):
+            return row
+        cache = Repository._cache
+        fid = row.get("food_id")
+        if cache is None or not fid:
+            return row
+        fd = cache.get_food(fid)
+        if not fd:
+            return row
+        out = dict(row)
+        out["foods"] = _food_payload_to_join(fd)
+        return out
 
     def save(self, item: MealItem) -> None:
-        """Upsert a MealItem to Supabase."""
-        tbl = self._table("meal_items")
-        if tbl is None:
+        """Upsert meal item in cache, enqueue sync."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.upsert(self._item_to_dict(item)).execute()
+        payload = self._item_to_dict(item)
+        cache.upsert_meal_item(payload, from_remote=False)
+        cache.enqueue_sync("meal_items", "upsert", item.id, payload)
+        trigger_flush_async()
 
     def delete(self, item_id: str) -> None:
-        """Delete a MealItem from Supabase."""
-        tbl = self._table("meal_items")
-        if tbl is None:
+        """Delete from cache, enqueue remote delete."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.delete().eq("id", item_id).execute()
+        cache.delete_meal_item(item_id)
+        cache.enqueue_sync("meal_items", "delete", item_id, {"id": item_id})
+        trigger_flush_async()
 
     def _item_to_dict(self, i: MealItem) -> Dict[str, Any]:
         return {
@@ -599,7 +467,7 @@ class MealItemRepository(Repository):
 
     @staticmethod
     def _row_to_item(row: Dict[str, Any]) -> MealItem:
-        food_data = row.get("foods") or {}
+        food_data = row.get("foods") if isinstance(row.get("foods"), dict) else {}
         nutrition = NutritionInfo(
             calories=food_data.get("calories") or 0.0,
             protein_g=food_data.get("protein_g") or 0.0,
@@ -625,59 +493,55 @@ class MealItemRepository(Repository):
 # ---------------------------------------------------------------------------
 
 class RecipeRepository(Repository):
-    """CRUD for recipes and their ingredients."""
-
-    _INGREDIENT_SELECT = (
-        "id, recipe_id, food_id, quantity_g, updated_at, "
-        "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
-    )
+    """CRUD for recipes and their ingredients (cache-first)."""
 
     def get_recipes_for_profile(self, profile_id: str) -> List[Recipe]:
-        """Fetch all recipes belonging to a profile, with ingredients."""
-        tbl = self._table("recipes")
-        if tbl is None:
+        """Fetch all recipes for a profile from cache, with ingredients."""
+        cache = Repository._cache
+        if cache is None:
             return []
-        response = (
-            tbl.select("*")
-            .eq("profile_id", profile_id)
-            .order("name")
-            .execute()
-        )
-        recipes = [self._row_to_recipe(r) for r in response.data]
+        rows = cache.get_recipes_for_profile_rows(profile_id)
+        rows.sort(key=lambda r: (r.get("name") or "").lower())
+        recipes = [self._row_to_recipe(r) for r in rows]
         for recipe in recipes:
             recipe.ingredients = self._load_ingredients(recipe.id)
         return recipes
 
     def get(self, recipe_id: str) -> Optional[Recipe]:
-        """Fetch a single Recipe with all its ingredients."""
-        tbl = self._table("recipes")
-        if tbl is None:
+        """Fetch a single Recipe with ingredients from cache."""
+        cache = Repository._cache
+        if cache is None:
             return None
-        response = tbl.select("*").eq("id", recipe_id).execute()
-        if not response.data:
+        row = cache.get_recipe_row(recipe_id)
+        if row is None:
             return None
-        recipe = self._row_to_recipe(response.data[0])
+        recipe = self._row_to_recipe(row)
         recipe.ingredients = self._load_ingredients(recipe.id)
         return recipe
 
     def save(self, recipe: Recipe) -> None:
-        """Upsert a Recipe to Supabase (does not save ingredients)."""
-        tbl = self._table("recipes")
-        if tbl is None:
+        """Upsert recipe in cache (ingredients saved separately)."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.upsert(self._recipe_to_dict(recipe)).execute()
+        payload = self._recipe_to_dict(recipe)
+        cache.upsert_recipe(payload, from_remote=False)
+        cache.enqueue_sync("recipes", "upsert", recipe.id, payload)
+        trigger_flush_async()
 
     def delete(self, recipe_id: str) -> None:
-        """Delete a Recipe from Supabase (cascade to ingredients via FK)."""
-        tbl = self._table("recipes")
-        if tbl is None:
+        """Delete recipe and cached ingredients; enqueue remote delete."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.delete().eq("id", recipe_id).execute()
+        cache.delete_recipe(recipe_id)
+        cache.enqueue_sync("recipes", "delete", recipe_id, {"id": recipe_id})
+        trigger_flush_async()
 
     def save_ingredient(self, ingredient: RecipeIngredient) -> None:
-        """Upsert a RecipeIngredient to Supabase."""
-        tbl = self._table("recipe_ingredients")
-        if tbl is None:
+        """Upsert a recipe ingredient in cache."""
+        cache = Repository._cache
+        if cache is None:
             return
         data = {
             "id": ingredient.id,
@@ -686,33 +550,45 @@ class RecipeRepository(Repository):
             "quantity_g": ingredient.quantity_g,
             "updated_at": ingredient.updated_at or time.time(),
         }
-        tbl.upsert(data).execute()
+        cache.upsert_recipe_ingredient(data, from_remote=False)
+        cache.enqueue_sync("recipe_ingredients", "upsert", ingredient.id, data)
+        trigger_flush_async()
 
     def delete_ingredient(self, ingredient_id: str) -> None:
-        """Delete a RecipeIngredient from Supabase."""
-        tbl = self._table("recipe_ingredients")
-        if tbl is None:
+        """Delete ingredient from cache, enqueue sync."""
+        cache = Repository._cache
+        if cache is None:
             return
-        tbl.delete().eq("id", ingredient_id).execute()
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
+        cache.delete_recipe_ingredient(ingredient_id)
+        cache.enqueue_sync(
+            "recipe_ingredients", "delete", ingredient_id, {"id": ingredient_id}
+        )
+        trigger_flush_async()
 
     def _load_ingredients(self, recipe_id: str) -> List[RecipeIngredient]:
-        tbl = self._table("recipe_ingredients")
-        if tbl is None:
+        cache = Repository._cache
+        if cache is None:
             return []
-        response = (
-            tbl.select(self._INGREDIENT_SELECT)
-            .eq("recipe_id", recipe_id)
-            .execute()
-        )
-        return [self._row_to_ingredient(r) for r in response.data]
+        rows = cache.get_recipe_ingredient_rows(recipe_id)
+        return [self._row_to_ingredient(self._enrich_ing_row(r)) for r in rows]
+
+    def _enrich_ing_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        if row.get("foods"):
+            return row
+        cache = Repository._cache
+        fid = row.get("food_id")
+        if cache is None or not fid:
+            return row
+        fd = cache.get_food(fid)
+        if not fd:
+            return row
+        out = dict(row)
+        out["foods"] = _food_payload_to_join(fd)
+        return out
 
     @staticmethod
     def _row_to_ingredient(row: Dict[str, Any]) -> RecipeIngredient:
-        food_data = row.get("foods") or {}
+        food_data = row.get("foods") if isinstance(row.get("foods"), dict) else {}
         return RecipeIngredient(
             id=row["id"],
             recipe_id=row["recipe_id"],
