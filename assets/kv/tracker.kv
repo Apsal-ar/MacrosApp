@@ -114,12 +114,14 @@
 
         # ── Meal cards (scroll) ───────────────────────────────────────
         MDScrollView:
+            id: meals_scroll
             size_hint_y: 1
             bar_width: dp(6)
             scroll_type: ["bars", "content"]
             do_scroll_x: False
 
             MDBoxLayout:
+                id: meals_scroll_inner
                 orientation: "vertical"
                 padding: ["12dp", "8dp", "12dp", "16dp"]
                 spacing: "12dp"

@@ -3,7 +3,7 @@
 Features:
 - Date selector (defaults to today, navigate ±1 day)
 - N MealCard widgets based on Goals.meals_per_day
-- FoodSearchDialog launched per meal slot
+- FoodSearchScreen for adding foods per meal slot
 - Daily macro totals with progress bars
 - Colour-coded progress: green / amber / red
 """
@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivymd.app import MDApp
 
 from screens.base_screen import BaseScreen
 from services.macro_calculator import MacroCalculator
@@ -32,7 +33,6 @@ from utils.constants import (
     RGBA_CALORIE_INDICATOR,
     RGBA_CALORIE_TRACK,
 )
-from widgets.food_search_dialog import FoodSearchDialog
 from widgets.meal_card import MealCard
 
 Builder.load_file("assets/kv/tracker.kv")
@@ -56,7 +56,6 @@ class TrackerScreen(BaseScreen):
         self._goals_carbs: float = 200.0
         self._goals_fat: float = 67.0
         self._meals_per_day: int = 3
-        self._active_dialog: Optional[FoodSearchDialog] = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -64,6 +63,7 @@ class TrackerScreen(BaseScreen):
 
     def on_enter(self) -> None:
         """Load today's data when the screen becomes active."""
+        self._pending_load_retries = 0
         Clock.schedule_once(self._load_day, 0)
 
     # ------------------------------------------------------------------
@@ -100,7 +100,12 @@ class TrackerScreen(BaseScreen):
         """
         user_id = self.get_current_user_id()
         if not user_id:
+            # Auth / app state can lag the first frame after opening the shell; retry briefly.
+            self._pending_load_retries = getattr(self, "_pending_load_retries", 0) + 1
+            if self._pending_load_retries <= 60:
+                Clock.schedule_once(self._load_day, 0.05)
             return
+        self._pending_load_retries = 0
 
         self._refresh_date_label()
         self._load_goals(user_id)
@@ -156,13 +161,28 @@ class TrackerScreen(BaseScreen):
             self.ids.meals_container.add_widget(card)
 
         self._update_daily_totals()
+        # ScrollView often skips sizing the inner column until the next input/layout pass;
+        # force height + layout so meal cards appear immediately on cold start.
+        Clock.schedule_once(self._sync_meals_scroll_layout, 0)
+        Clock.schedule_once(self._sync_meals_scroll_layout, 0.05)
+
+    def _sync_meals_scroll_layout(self, _dt: Optional[float] = None) -> None:
+        """Update scroll content height and relayout so cards are visible without tapping."""
+        try:
+            inner = self.ids.meals_scroll_inner
+            inner.height = inner.minimum_height
+            container = self.ids.meals_container
+            container.height = container.minimum_height
+            self.ids.meals_scroll.do_layout()
+        except Exception:
+            return
 
     # ------------------------------------------------------------------
     # Add food flow
     # ------------------------------------------------------------------
 
     def _on_add_food_tapped(self, card: MealCard, meal_id: str) -> None:  # noqa: ARG002
-        """Open the food search dialog for the tapped meal slot.
+        """Open the full-screen food search for the tapped meal slot.
 
         Args:
             card: The MealCard widget (unused; meal_id used instead).
@@ -171,12 +191,18 @@ class TrackerScreen(BaseScreen):
         user_id = self.get_current_user_id()
         if not user_id:
             return
+        try:
+            shell = MDApp.get_running_app().root.get_screen("app")
+            sm = shell.ids.inner_sm
+            search_screen = sm.get_screen("food_search")
+            search_screen.meal_id = meal_id
+            sm.current = "food_search"
+        except Exception:  # pylint: disable=broad-except
+            self.show_error("Could not open food search.")
 
-        self._active_dialog = FoodSearchDialog(
-            profile_id=user_id,
-            on_food_confirmed=lambda food, qty: self._add_food_to_meal(meal_id, food, qty),
-        )
-        self._active_dialog.open()
+    def add_food_from_search(self, meal_id: str, food: Food, quantity_g: float) -> None:
+        """Called by FoodSearchScreen after the user confirms a food + quantity."""
+        self._add_food_to_meal(meal_id, food, quantity_g)
 
     def _add_food_to_meal(self, meal_id: str, food: Food, quantity_g: float) -> None:
         """Create a MealItem and add it to the meal card.

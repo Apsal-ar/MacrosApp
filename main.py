@@ -39,6 +39,7 @@ from utils.constants import (                                    # noqa: E402
 from screens.profile_screen import ProfileScreen                # noqa: E402
 from screens.goals_screen import GoalsScreen                    # noqa: E402
 from screens.tracker_screen import TrackerScreen                # noqa: E402
+import screens.food_search_screen  # noqa: E402 — registers FoodSearchScreen KV rule
 from screens.settings_screen import SettingsScreen              # noqa: E402
 from widgets.macro_pie_chart import MacroPieChart               # noqa: E402
 from widgets.macro_progress_bar import MacroProgressBar         # noqa: E402
@@ -145,6 +146,7 @@ Builder.load_string("""
             ProfileScreen:
             GoalsScreen:
             SettingsScreen:
+            FoodSearchScreen:
 
         MDNavigationBar:
             id: nav_bar

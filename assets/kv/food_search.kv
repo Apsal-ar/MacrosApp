@@ -1,0 +1,206 @@
+#:import dp kivy.metrics.dp
+
+<FoodSearchScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: app.theme_cls.backgroundColor
+
+        # Header
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            md_bg_color: app.theme_cls.primaryColor
+            padding: ["4dp", "0dp", "8dp", "0dp"]
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                on_release: root.go_back()
+
+            MDLabel:
+                text: "Search"
+                font_style: "Title"
+                role: "medium"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                halign: "center"
+                valign: "center"
+                size_hint_x: 1
+
+            MDIconButton:
+                icon: "plus"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                on_release: root.open_manual_form()
+
+        # Search bar (text + clear + barcode)
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: ["12dp", "8dp", "12dp", "8dp"]
+
+            MDBoxLayout:
+                orientation: "horizontal"
+                spacing: "4dp"
+                md_bg_color: app.theme_cls.surfaceContainerHighColor
+                radius: [dp(12), dp(12), dp(12), dp(12)]
+                padding: ["4dp", "0dp", "8dp", "0dp"]
+                size_hint_y: None
+                height: "52dp"
+
+                MDIconButton:
+                    icon: "magnify"
+                    theme_text_color: "Secondary"
+
+                MDTextField:
+                    id: search_field
+                    hint_text: "Search foods..."
+                    mode: "filled"
+                    size_hint_x: 1
+                    on_text: root.on_search_text(self.text)
+
+                MDIconButton:
+                    id: clear_search_btn
+                    icon: "close"
+                    opacity: 0
+                    disabled: True
+                    on_release: root.clear_search()
+
+                MDIconButton:
+                    icon: "barcode-scan"
+                    theme_text_color: "Primary"
+                    on_release: root.on_scan_pressed()
+
+        # Tabs
+        MDBoxLayout:
+            id: tab_row
+            size_hint_y: None
+            height: "44dp"
+            spacing: "4dp"
+            padding: ["8dp", "0dp", "8dp", "4dp"]
+
+            MDButton:
+                id: tab_b0
+                style: "text"
+                on_release: root.set_tab(0)
+
+                MDButtonText:
+                    text: "My foods"
+
+            MDButton:
+                id: tab_b1
+                style: "text"
+                on_release: root.set_tab(1)
+
+                MDButtonText:
+                    text: "My recipes"
+
+            MDButton:
+                id: tab_b2
+                style: "text"
+                on_release: root.set_tab(2)
+
+                MDButtonText:
+                    text: "Library"
+
+        MDDivider:
+            theme_divider_color: "Custom"
+            color: "#94A09F"
+
+        MDScrollView:
+            size_hint_y: 1
+            bar_width: dp(5)
+            do_scroll_x: False
+
+            MDBoxLayout:
+                id: results_outer
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+
+                MDList:
+                    id: results_list
+                    size_hint_y: None
+                    height: self.minimum_height
+
+        MDBoxLayout:
+            id: quantity_row
+            orientation: "horizontal"
+            size_hint_y: None
+            height: "0dp"
+            opacity: 0
+            spacing: "8dp"
+            padding: ["12dp", "4dp", "12dp", "8dp"]
+
+            MDTextField:
+                id: quantity_field
+                hint_text: "Quantity (g)"
+                input_filter: "float"
+                text: "100"
+                size_hint_x: 1
+
+            MDButton:
+                style: "filled"
+                size_hint_x: None
+                width: "88dp"
+                on_release: root.on_confirm_quantity()
+
+                MDButtonText:
+                    text: "Add"
+
+        MDBoxLayout:
+            id: manual_form
+            orientation: "vertical"
+            size_hint_y: None
+            height: "0dp"
+            opacity: 0
+            spacing: "4dp"
+            padding: ["12dp", "4dp", "12dp", "12dp"]
+
+            MDLabel:
+                text: "Enter food details manually"
+                font_style: "Title"
+                role: "small"
+
+            MDTextField:
+                id: manual_name
+                hint_text: "Food name *"
+
+            MDBoxLayout:
+                size_hint_y: None
+                height: "56dp"
+                spacing: "8dp"
+
+                MDTextField:
+                    id: manual_calories
+                    hint_text: "Calories/100g"
+                    input_filter: "float"
+
+                MDTextField:
+                    id: manual_protein
+                    hint_text: "Protein (g)"
+                    input_filter: "float"
+
+            MDBoxLayout:
+                size_hint_y: None
+                height: "56dp"
+                spacing: "8dp"
+
+                MDTextField:
+                    id: manual_carbs
+                    hint_text: "Carbs (g)"
+                    input_filter: "float"
+
+                MDTextField:
+                    id: manual_fat
+                    hint_text: "Fat (g)"
+                    input_filter: "float"
+
+            MDButton:
+                style: "filled"
+                size_hint_x: 1
+                on_release: root.on_save_manual()
+
+                MDButtonText:
+                    text: "Save & Use"
