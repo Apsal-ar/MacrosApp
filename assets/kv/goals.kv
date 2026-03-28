@@ -119,16 +119,17 @@
                         size_hint_x: 0.5
                         text_size: self.width, None
 
-                    MDBoxLayout:
-                        orientation: "horizontal"
+                    FloatLayout:
                         size_hint_x: 0.5
-
-                        Widget:
-                            size_hint_x: 1
+                        size_hint_y: None
+                        height: "48dp"
 
                         MDBoxLayout:
                             orientation: "horizontal"
-                            size_hint_x: None
+                            pos_hint: {"right": 1, "center_y": 0.5}
+                            size_hint: None, None
+                            width: dp(184)
+                            height: dp(44)
                             spacing: "6dp"
 
                             TextInput:
