@@ -16,13 +16,15 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.modalview import ModalView
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
+from kivymd.uix.button import MDButtonText, MDIconButton
+from widgets.macros_button import MacrosFilledButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 from models.food import Food, NutritionInfo
 from screens.base_screen import BaseScreen
 from services.barcode_service import BarcodeService
 from services.food_service import FoodService
+import widgets.macros_button  # noqa: F401 — registers Macros*Button for food_search.kv
 Builder.load_file("assets/kv/food_search.kv")
 
 logger = logging.getLogger(__name__)
@@ -237,6 +239,7 @@ class FoodSearchScreen(BaseScreen):
             orientation="vertical",
             spacing=dp(20),
             padding=[dp(16), dp(32), dp(16), dp(24)],
+            size_hint_x=1,
             size_hint_y=None,
         )
         root.bind(minimum_height=root.setter("height"))
@@ -274,8 +277,7 @@ class FoodSearchScreen(BaseScreen):
 
         root.add_widget(card)
 
-        btn = MDButton(
-            style="filled",
+        btn = MacrosFilledButton(
             size_hint_y=None,
             height=dp(48),
             size_hint_x=1,
@@ -284,8 +286,18 @@ class FoodSearchScreen(BaseScreen):
         btn.add_widget(
             MDButtonText(
                 text=f'Search "{query}" in the library',
+                halign="center",
             )
         )
+
+        def _sync_cta_text_size(*_a: object) -> None:
+            t = getattr(btn, "_button_text", None)
+            if t is not None:
+                t.text_size = (max(dp(48), btn.width - dp(32)), None)
+
+        btn.fbind("width", _sync_cta_text_size)
+        Clock.schedule_once(_sync_cta_text_size, 0)
+
         root.add_widget(btn)
         return root
 
@@ -294,6 +306,7 @@ class FoodSearchScreen(BaseScreen):
             orientation="vertical",
             spacing=dp(20),
             padding=[dp(16), dp(32), dp(16), dp(24)],
+            size_hint_x=1,
             size_hint_y=None,
         )
         root.bind(minimum_height=root.setter("height"))

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import types
 from typing import Callable, Optional
 
 from kivy.clock import Clock
@@ -27,11 +26,11 @@ from utils.constants import (
     RGBA_POPUP,
 )
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButton
 from kivymd.uix.selectioncontrol import MDSwitch  # noqa: F401 — registers MDSwitch for KV
 
 from widgets.calorie_slider_track import CalorieSliderTrack  # noqa: F401 — registers CalorieSliderTrack for KV
 from widgets.macro_pie_chart import MacroPieChart  # noqa: F401 — registers MacroPieChart for KV
+import widgets.macros_button  # noqa: F401 — registers Macros*Button for goals.kv
 
 
 class _SaveDialogActionRow(ButtonBehavior, MDBoxLayout):
@@ -252,34 +251,6 @@ class EditCalorieTargetSheet(ModalView):
         self._initial_adjustment_pct = float(self.adjustment_pct)
         self._initial_use_recommended = bool(self.use_recommended)
         Clock.schedule_once(self._style_slider, 0)
-        Clock.schedule_once(self._patch_save_button_label_center, 0.25)
-
-    def _patch_save_button_label_center(self, _dt: float) -> None:
-        """KivyMD pins MDButtonText to the left; re-center for full-width Save."""
-        btn = self.ids.get("save_cal_btn")
-        if btn is None:
-            Clock.schedule_once(self._patch_save_button_label_center, 0.05)
-            return
-        if getattr(btn, "_macros_save_label_centered", False):
-            return
-        btn._macros_save_label_centered = True
-
-        def adjust_pos_centered(instance: MDButton, *args: object) -> None:
-            MDButton.adjust_pos(instance, *args)
-            t = instance._button_text
-            if t is not None and instance._button_icon is None:
-                t.x = (instance.width - t.texture_size[0]) * 0.5
-
-        btn.adjust_pos = types.MethodType(adjust_pos_centered, btn)
-
-        def _recenter(*_a: object) -> None:
-            btn.adjust_pos()
-
-        btn.fbind("width", _recenter)
-        lbl = btn._button_text
-        if lbl is not None:
-            lbl.fbind("texture_size", _recenter)
-        Clock.schedule_once(_recenter, 0)
 
     def _style_slider(self, _dt: float) -> None:
         """Hide the default horizontal rail so the colored strip shows through."""
@@ -676,7 +647,8 @@ class EditMacrosSheet(ModalView):
 
     def open_mode_menu(self) -> None:
         """Popup to choose Percentages vs Grams."""
-        from kivymd.uix.button import MDButton, MDButtonText  # noqa: PLC0415
+        from kivymd.uix.button import MDButtonText  # noqa: PLC0415
+        from widgets.macros_button import MacrosFilledButton, MacrosTextButton  # noqa: PLC0415
         from kivymd.uix.dialog import (  # noqa: PLC0415
             MDDialog,
             MDDialogButtonContainer,
@@ -698,19 +670,16 @@ class EditMacrosSheet(ModalView):
             MDDialogHeadlineText(text="Set in"),
             MDDialogSupportingText(text="Choose how to enter macronutrients"),
             MDDialogButtonContainer(
-                MDButton(
+                MacrosFilledButton(
                     MDButtonText(text="Percentages"),
-                    style="filled",
                     on_release=pick_percent,
                 ),
-                MDButton(
+                MacrosFilledButton(
                     MDButtonText(text="Grams (g)"),
-                    style="filled",
                     on_release=pick_grams,
                 ),
-                MDButton(
+                MacrosTextButton(
                     MDButtonText(text="Cancel"),
-                    style="text",
                     on_release=lambda *_a: dlg_ref[0].dismiss(),
                 ),
                 orientation="vertical",

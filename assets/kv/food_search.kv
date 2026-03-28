@@ -76,29 +76,26 @@
         MDBoxLayout:
             id: tab_row
             size_hint_y: None
-            height: "44dp"
+            height: "52dp"
             spacing: "4dp"
             padding: ["8dp", "0dp", "8dp", "4dp"]
 
-            MDButton:
+            MacrosTextButton:
                 id: tab_b0
-                style: "text"
                 on_release: root.set_tab(0)
 
                 MDButtonText:
                     text: "My foods"
 
-            MDButton:
+            MacrosTextButton:
                 id: tab_b1
-                style: "text"
                 on_release: root.set_tab(1)
 
                 MDButtonText:
                     text: "My recipes"
 
-            MDButton:
+            MacrosTextButton:
                 id: tab_b2
-                style: "text"
                 on_release: root.set_tab(2)
 
                 MDButtonText:
@@ -140,8 +137,7 @@
                 text: "100"
                 size_hint_x: 1
 
-            MDButton:
-                style: "filled"
+            MacrosFilledButton:
                 size_hint_x: None
                 width: "88dp"
                 on_release: root.on_confirm_quantity()
@@ -197,9 +193,7 @@
                     hint_text: "Fat (g)"
                     input_filter: "float"
 
-            MDButton:
-                style: "filled"
-                size_hint_x: 1
+            MacrosFilledButton:
                 on_release: root.on_save_manual()
 
                 MDButtonText:

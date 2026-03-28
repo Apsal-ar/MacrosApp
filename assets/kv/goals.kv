@@ -246,15 +246,8 @@
                     anchor_x: "center"
                     anchor_y: "center"
 
-                    MDButton:
+                    MacrosFilledButton:
                         id: save_cal_btn
-                        style: "filled"
-                        theme_width: "Custom"
-                        theme_height: "Custom"
-                        radius: [dp(6), dp(6), dp(6), dp(6)]
-                        size_hint_y: None
-                        height: "48dp"
-                        size_hint_x: 1
                         disabled: not root.body_available
                         on_release: root.save_calories()
 
@@ -324,8 +317,8 @@
 
                     MDBoxLayout:
                         size_hint_y: None
-                        height: "42dp"
-                        padding: ["0dp", "5dp", "0dp", "5dp"]
+                        height: "48dp"
+                        padding: ["0dp", "2dp", "0dp", "2dp"]
                         MDLabel:
                             text: "Set in"
                             size_hint_x: None
@@ -339,8 +332,7 @@
                             anchor_x: "right"
                             anchor_y: "center"
                             size_hint_x: 1
-                            MDButton:
-                                style: "text"
+                            MacrosTextButton:
                                 size_hint_x: None
                                 padding: [0, 0, 0, 0]
                                 pos_hint: {"center_y": 0.5}
@@ -627,10 +619,7 @@
                     anchor_x: "center"
                     anchor_y: "center"
 
-                    MDButton:
-                        style: "filled"
-                        size_hint_x: None
-                        width: dp(200)
+                    MacrosFilledButton:
                         disabled: not root.can_save
                         on_release: root.save_changes()
 

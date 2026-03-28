@@ -18,6 +18,7 @@ from kivymd.uix.card import MDCard
 
 from models.meal import Meal, MealItem
 from widgets.food_item_row import FoodItemRow
+import widgets.macros_button  # noqa: F401 — registers Macros*Button for MealCard KV
 
 Builder.load_string("""
 <MealCard>:
@@ -64,12 +65,10 @@ Builder.load_string("""
 
     MDBoxLayout:
         size_hint_y: None
-        height: "40dp"
+        height: "48dp"
 
-        Widget:
-
-        MDButton:
-            style: "text"
+        MacrosFilledButton:
+            size_hint_x: 1
             on_release: root.dispatch("on_add_food", root.meal_id)
 
             MDButtonIcon:

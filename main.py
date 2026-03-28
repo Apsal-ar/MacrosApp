@@ -36,6 +36,7 @@ from utils.constants import (                                    # noqa: E402
     RGBA_PRIMARY,
     RGBA_SURFACE,
 )
+import widgets.macros_button  # noqa: F401, E402 — registers Macros*Button before Login KV
 from screens.profile_screen import ProfileScreen                # noqa: E402
 from screens.goals_screen import GoalsScreen                    # noqa: E402
 from screens.tracker_screen import TrackerScreen                # noqa: E402
@@ -104,18 +105,13 @@ Builder.load_string("""
             height: "24dp"
             halign: "center"
 
-        MDButton:
-            style: "filled"
-            size_hint_x: 1
-            height: "52dp"
+        MacrosFilledButton:
             on_release: app.login(root.ids.email_field.text, root.ids.password_field.text, root)
 
             MDButtonText:
                 text: "Sign In"
 
-        MDButton:
-            style: "text"
-            size_hint_x: 1
+        MacrosTextButton:
             on_release: app.sign_up(root.ids.email_field.text, root.ids.password_field.text, root)
 
             MDButtonText:

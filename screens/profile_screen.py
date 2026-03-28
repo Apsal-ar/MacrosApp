@@ -28,7 +28,10 @@ from kivy.uix.widget import Widget
 from kivymd.app import MDApp
 from kivymd.uix.appbar import MDTopAppBar  # noqa: F401 — registers KV Factory
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
+from kivymd.uix.button import MDButtonText, MDIconButton
+
+import widgets.macros_button  # noqa: F401 — registers Macros* KV rules before _KV
+from widgets.macros_button import MacrosFilledButton, MacrosTextButton
 from kivymd.uix.dialog import (
     MDDialog,
     MDDialogButtonContainer,
@@ -348,9 +351,7 @@ _KV = """
             height: "88dp"
             padding: ["16dp", "8dp", "16dp", "24dp"]
 
-            MDButton:
-                style: "filled"
-                size_hint_x: 1
+            MacrosFilledButton:
                 on_release: root._save_and_dismiss()
 
                 MDButtonText:
@@ -476,9 +477,7 @@ _KV = """
             height: "88dp"
             padding: ["16dp", "8dp", "16dp", "24dp"]
 
-            MDButton:
-                style: "filled"
-                size_hint_x: 1
+            MacrosFilledButton:
                 on_release: root.calculate_and_save()
 
                 MDButtonText:
@@ -664,9 +663,7 @@ _KV = """
             height: "88dp"
             padding: ["16dp", "8dp", "16dp", "24dp"]
 
-            MDButton:
-                style: "filled"
-                size_hint_x: 1
+            MacrosFilledButton:
                 on_release: root._save_and_dismiss()
 
                 MDButtonText:
@@ -716,21 +713,14 @@ _DRUM_KV = """
                 spacing: "12dp"
                 orientation: "horizontal"
 
-                MDButton:
-                    style: "text"
+                MacrosTextButton:
                     size_hint_x: 1
-                    size_hint_y: None
-                    height: "44dp"
                     on_release: root.dismiss()
                     MDButtonText:
                         text: "Cancel"
 
-                MDButton:
-                    style: "filled"
+                MacrosFilledButton:
                     size_hint_x: 1
-                    size_hint_y: None
-                    height: "44dp"
-                    radius: [dp(12), dp(12), dp(12), dp(12)]
                     on_release: root._confirm()
                     MDButtonText:
                         text: "Ok"
@@ -780,21 +770,14 @@ _DRUM_KV = """
                 spacing: "12dp"
                 orientation: "horizontal"
 
-                MDButton:
-                    style: "text"
+                MacrosTextButton:
                     size_hint_x: 1
-                    size_hint_y: None
-                    height: "44dp"
                     on_release: root.dismiss()
                     MDButtonText:
                         text: "Cancel"
 
-                MDButton:
-                    style: "filled"
+                MacrosFilledButton:
                     size_hint_x: 1
-                    size_hint_y: None
-                    height: "44dp"
-                    radius: [dp(12), dp(12), dp(12), dp(12)]
                     on_release: root._confirm()
                     MDButtonText:
                         text: "Ok"
@@ -817,9 +800,8 @@ def _show_range_popup(title: str, message: str) -> None:
         ),
         MDDialogButtonContainer(
             Widget(),
-            MDButton(
+            MacrosFilledButton(
                 MDButtonText(text="Ok"),
-                style="filled",
                 on_release=lambda x: dlg_ref[0].dismiss() if dlg_ref else None,
             ),
             spacing="8dp",
@@ -1407,12 +1389,11 @@ class BodyFatSheet(ModalView):
             ),
             MDDialogButtonContainer(
                 Widget(),
-                MDButton(
+                MacrosTextButton(
                     MDButtonText(text="Cancel"),
-                    style="text",
                     on_release=lambda x: dlg_ref[0].dismiss() if dlg_ref else None,
                 ),
-                MDButton(MDButtonText(text="Set"), style="filled", on_release=_apply),
+                MacrosFilledButton(MDButtonText(text="Set"), on_release=_apply),
                 spacing="8dp",
             ),
             theme_bg_color="Custom",
@@ -1660,12 +1641,11 @@ class EditProfileSheet(ModalView):
             ),
             MDDialogButtonContainer(
                 Widget(),
-                MDButton(
+                MacrosTextButton(
                     MDButtonText(text="Cancel"),
-                    style="text",
                     on_release=lambda x: dlg_ref[0].dismiss() if dlg_ref else None,
                 ),
-                MDButton(MDButtonText(text="Set"), style="filled", on_release=_apply),
+                MacrosFilledButton(MDButtonText(text="Set"), on_release=_apply),
                 spacing="8dp",
             ),
             theme_bg_color="Custom",
@@ -1733,12 +1713,11 @@ class EditProfileSheet(ModalView):
             ),
             MDDialogButtonContainer(
                 Widget(),
-                MDButton(
+                MacrosTextButton(
                     MDButtonText(text="Cancel"),
-                    style="text",
                     on_release=lambda x: dlg_ref[0].dismiss() if dlg_ref else None,
                 ),
-                MDButton(MDButtonText(text="Set"), style="filled", on_release=_apply),
+                MacrosFilledButton(MDButtonText(text="Set"), on_release=_apply),
                 spacing="8dp",
             ),
             theme_bg_color="Custom",

@@ -27,6 +27,7 @@ from services.repository import MealRepository, MealItemRepository, RecipeReposi
 from models.food import Food
 from models.recipe import Recipe
 import config
+import widgets.macros_button  # noqa: F401 — registers Macros*Button for settings.kv
 
 logger = logging.getLogger(__name__)
 Builder.load_file("assets/kv/settings.kv")

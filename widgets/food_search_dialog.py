@@ -25,6 +25,7 @@ from models.food import Food, NutritionInfo
 from services.food_service import FoodService
 from services.barcode_service import BarcodeService
 from utils.constants import RGBA_POPUP
+import widgets.macros_button  # noqa: F401 — registers Macros*Button for FoodSearchContent KV
 
 Builder.load_string("""
 <FoodSearchContent>:
@@ -74,8 +75,7 @@ Builder.load_string("""
             text: "100"
             size_hint_x: 1
 
-        MDButton:
-            style: "filled"
+        MacrosFilledButton:
             size_hint_x: None
             width: "80dp"
             on_release: root.on_confirm_quantity()
@@ -130,9 +130,7 @@ Builder.load_string("""
                 hint_text: "Fat (g)"
                 input_filter: "float"
 
-        MDButton:
-            style: "filled"
-            size_hint_x: 1
+        MacrosFilledButton:
             on_release: root.on_save_manual()
 
             MDButtonText:
