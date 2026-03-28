@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import types
 from typing import Optional
 
 from kivy.clock import Clock
@@ -22,6 +23,7 @@ from utils.constants import (
     KCAL_PER_G_FAT,
     KCAL_PER_G_PROTEIN,
 )
+from kivymd.uix.button import MDButton
 from kivymd.uix.selectioncontrol import MDSwitch  # noqa: F401 — registers MDSwitch for KV
 
 from widgets.calorie_slider_track import CalorieSliderTrack  # noqa: F401 — registers CalorieSliderTrack for KV
@@ -86,6 +88,34 @@ class EditCalorieTargetSheet(ModalView):
         self._populating = False
         self._refresh_labels()
         Clock.schedule_once(self._style_slider, 0)
+        Clock.schedule_once(self._patch_save_button_label_center, 0.25)
+
+    def _patch_save_button_label_center(self, _dt: float) -> None:
+        """KivyMD pins MDButtonText to the left; re-center for full-width Save."""
+        btn = self.ids.get("save_cal_btn")
+        if btn is None:
+            Clock.schedule_once(self._patch_save_button_label_center, 0.05)
+            return
+        if getattr(btn, "_macros_save_label_centered", False):
+            return
+        btn._macros_save_label_centered = True
+
+        def adjust_pos_centered(instance: MDButton, *args: object) -> None:
+            MDButton.adjust_pos(instance, *args)
+            t = instance._button_text
+            if t is not None and instance._button_icon is None:
+                t.x = (instance.width - t.texture_size[0]) * 0.5
+
+        btn.adjust_pos = types.MethodType(adjust_pos_centered, btn)
+
+        def _recenter(*_a: object) -> None:
+            btn.adjust_pos()
+
+        btn.fbind("width", _recenter)
+        lbl = btn._button_text
+        if lbl is not None:
+            lbl.fbind("texture_size", _recenter)
+        Clock.schedule_once(_recenter, 0)
 
     def _style_slider(self, _dt: float) -> None:
         """Hide the default horizontal rail so the colored strip shows through."""
@@ -117,11 +147,15 @@ class EditCalorieTargetSheet(ModalView):
         w.focus = True
 
     def on_kcal_field_text(self, text: str) -> None:
-        """Typed kcal → adjustment % and slider (manual mode only)."""
+        """Typed kcal → adjustment % and slider; editing exits use-recommended."""
         if self._populating or self._syncing_field:
             return
         if self.use_recommended:
-            return
+            self._populating = True
+            self.use_recommended = False
+            if "use_rec_switch" in self.ids:
+                self.ids.use_rec_switch.active = False
+            self._populating = False
         try:
             raw = (text or "").strip()
             if raw in ("", ".", "-", "-."):
