@@ -114,8 +114,9 @@ _COLOURS: List[tuple] = [
 _LABELS = ["Protein", "Carbs", "Fat"]
 
 # Angular gap between adjacent slices (degrees), plus slight radial "explode".
-_SEGMENT_GAP_DEG = 2.0
-_EXPLODE_DP = 4.0
+# Shared with other macro pies (e.g. library food detail) — keep in sync.
+SEGMENT_GAP_DEG = 2.0
+EXPLODE_DP = 4.0
 
 
 class MacroPieChart(MDBoxLayout):
@@ -181,8 +182,8 @@ class MacroPieChart(MDBoxLayout):
         # θ = 0° is 12 o'clock (top), 90° is 3 o'clock — NOT the usual math convention.
         pct_norm = [round((pct / total) * 100) if total > 0 else 0 for pct in percentages]
         mid_angles: List[float] = []
-        gap_half = _SEGMENT_GAP_DEG / 2.0
-        explode = dp(_EXPLODE_DP)
+        gap_half = SEGMENT_GAP_DEG / 2.0
+        explode = dp(EXPLODE_DP)
 
         with canvas_widget.canvas:
             cur = 0.0

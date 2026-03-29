@@ -2,7 +2,7 @@
 
 Each card represents one meal slot for the day (e.g. Breakfast, Lunch).
 It shows:
-  - An editable meal label
+  - A read-only meal label (names are edited under Profile)
   - A list of FoodItemRow widgets for each logged item
   - Per-meal macro totals
   - An "Add food" button that fires on_add_food
@@ -35,13 +35,18 @@ Builder.load_string("""
         height: "48dp"
         spacing: "8dp"
 
-        MDTextField:
-            id: label_field
+        MDLabel:
+            id: label_display
             text: root.meal_label
-            hint_text: "Meal name"
+            font_style: "Title"
+            role: "medium"
+            theme_text_color: "Primary"
             size_hint_x: 1
-            on_text_validate: root._on_label_change(self.text)
-            on_focus: if not self.focus: root._on_label_change(self.text)
+            size_hint_y: 1
+            halign: "left"
+            valign: "middle"
+            shorten: True
+            shorten_from: "right"
 
         MDLabel:
             id: totals_label
@@ -84,11 +89,10 @@ class MealCard(MDCard):
 
     Attributes:
         meal_id: UUID of the underlying Meal record.
-        meal_label: Editable display name.
+        meal_label: Display name (set from goals / meal data; edit names in Profile).
 
     Events:
         on_add_food: Fired when the Add Food button is tapped; passes meal_id.
-        on_label_changed: Fired when the label text is confirmed; passes (meal_id, new_label).
         on_delete_item: Fired when a FoodItemRow delete button is pressed; passes item_id.
     """
 
@@ -100,7 +104,7 @@ class MealCard(MDCard):
     _fat_total = NumericProperty(0.0)
     _calories_total = NumericProperty(0.0)
 
-    __events__ = ("on_add_food", "on_label_changed", "on_delete_item")
+    __events__ = ("on_add_food", "on_delete_item")
 
     @property
     def _totals_text(self) -> str:
@@ -191,20 +195,12 @@ class MealCard(MDCard):
         self._carbs_total = sum(r.carbs_g for r in rows)
         self._fat_total = sum(r.fat_g for r in rows)
 
-    def _on_label_change(self, text: str) -> None:
-        if text != self.meal_label:
-            self.meal_label = text
-            self.dispatch("on_label_changed", self.meal_id, text)
-
     # ------------------------------------------------------------------
     # Default event handlers
     # ------------------------------------------------------------------
 
     def on_add_food(self, meal_id: str) -> None:  # noqa: ARG002
         """Default no-op for on_add_food."""
-
-    def on_label_changed(self, meal_id: str, label: str) -> None:  # noqa: ARG002
-        """Default no-op for on_label_changed."""
 
     def on_delete_item(self, item_id: str) -> None:  # noqa: ARG002
         """Default no-op for on_delete_item."""

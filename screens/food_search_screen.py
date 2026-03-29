@@ -33,6 +33,7 @@ from utils.constants import (
 )
 from services.barcode_service import BarcodeService
 from services.food_service import FoodService
+from widgets.library_food_detail_sheet import LibraryFoodDetailSheet
 import widgets.macros_button  # noqa: F401 — registers Macros*Button for food_search.kv
 Builder.load_file("assets/kv/food_search.kv")
 
@@ -132,6 +133,7 @@ class FoodSearchScreen(BaseScreen):
         self._food_service = FoodService()
         self._barcode_service: Optional[BarcodeService] = None
         self._camera_modal: Optional[ModalView] = None
+        self._library_detail_sheet: Optional[LibraryFoodDetailSheet] = None
         self._selected_food: Optional[Food] = None
         self._search_event: Optional[object] = None
 
@@ -145,6 +147,12 @@ class FoodSearchScreen(BaseScreen):
     def on_leave(self, *args: object) -> None:
         self._set_bottom_nav_visible(True)
         self._stop_barcode_scan()
+        if self._library_detail_sheet:
+            try:
+                self._library_detail_sheet.dismiss()
+            except Exception:  # pylint: disable=broad-except
+                pass
+            self._library_detail_sheet = None
         if self._camera_modal:
             try:
                 self._camera_modal.dismiss()
@@ -402,7 +410,20 @@ class FoodSearchScreen(BaseScreen):
 
     def _select_food(self, food: Food) -> None:
         self._selected_food = food
-        self._show_quantity_row()
+        if self.search_tab == 2:
+            self._open_library_food_detail(food)
+        else:
+            self._show_quantity_row()
+
+    def _open_library_food_detail(self, food: Food) -> None:
+        """Library tab: full nutrition sheet with pie chart, grams, and Add."""
+
+        def _on_add(qty_g: float, display_name: str) -> None:
+            self._library_detail_sheet = None
+            self._finish_add(food, qty_g, display_name)
+
+        self._library_detail_sheet = LibraryFoodDetailSheet(food=food, on_add=_on_add)
+        self._library_detail_sheet.open()
 
     def _show_quantity_row(self) -> None:
         row = self.ids.quantity_row
@@ -425,7 +446,9 @@ class FoodSearchScreen(BaseScreen):
             qty = 100.0
         self._finish_add(self._selected_food, qty)
 
-    def _finish_add(self, food: Food, qty: float) -> None:
+    def _finish_add(
+        self, food: Food, qty: float, display_name: Optional[str] = None
+    ) -> None:
         if not self.meal_id:
             self.show_error("Missing meal — go back and tap Add food again.")
             return
@@ -433,7 +456,7 @@ class FoodSearchScreen(BaseScreen):
             app = MDApp.get_running_app()
             shell = app.root.get_screen("app")
             tracker = shell.ids.inner_sm.get_screen("tracker")
-            tracker.add_food_from_search(self.meal_id, food, qty)
+            tracker.add_food_from_search(self.meal_id, food, qty, display_name)
             shell.ids.inner_sm.current = "tracker"
             self._reset_ui()
         except Exception as exc:  # pylint: disable=broad-except

@@ -153,7 +153,6 @@ class TrackerScreen(BaseScreen):
             card = MealCard()
             card.bind(
                 on_add_food=self._on_add_food_tapped,
-                on_label_changed=self._on_label_changed,
                 on_delete_item=self._on_delete_item,
             )
             card.load_meal(meal)
@@ -200,25 +199,39 @@ class TrackerScreen(BaseScreen):
         except Exception:  # pylint: disable=broad-except
             self.show_error("Could not open food search.")
 
-    def add_food_from_search(self, meal_id: str, food: Food, quantity_g: float) -> None:
+    def add_food_from_search(
+        self,
+        meal_id: str,
+        food: Food,
+        quantity_g: float,
+        display_name: Optional[str] = None,
+    ) -> None:
         """Called by FoodSearchScreen after the user confirms a food + quantity."""
-        self._add_food_to_meal(meal_id, food, quantity_g)
+        self._add_food_to_meal(meal_id, food, quantity_g, display_name)
 
-    def _add_food_to_meal(self, meal_id: str, food: Food, quantity_g: float) -> None:
+    def _add_food_to_meal(
+        self,
+        meal_id: str,
+        food: Food,
+        quantity_g: float,
+        display_name: Optional[str] = None,
+    ) -> None:
         """Create a MealItem and add it to the meal card.
 
         Args:
             meal_id: Target Meal UUID.
             food: The selected or created Food.
             quantity_g: Consumed quantity in grams.
+            display_name: Optional label for the log entry (e.g. library sheet edit).
         """
+        name = (display_name or "").strip() or food.name
         item = MealItem(
             id=Repository.new_id(),
             meal_id=meal_id,
             food_id=food.id,
             quantity_g=quantity_g,
             updated_at=time.time(),
-            food_name=food.name,
+            food_name=name,
             nutrition_per_100g=food.nutrition,
         )
 
@@ -247,26 +260,6 @@ class TrackerScreen(BaseScreen):
         for c in self._meal_cards.values():
             c.remove_item(item_id)
         self._update_daily_totals()
-
-    # ------------------------------------------------------------------
-    # Label change
-    # ------------------------------------------------------------------
-
-    def _on_label_changed(self, card: MealCard, meal_id: str, new_label: str) -> None:  # noqa: ARG002
-        """Persist a renamed meal label.
-
-        Args:
-            card: The originating MealCard (unused).
-            meal_id: UUID of the Meal whose label changed.
-            new_label: The new label text.
-        """
-        meal_repo: MealRepository = self.get_repo(MealRepository)
-        for meal in self._meals.values():
-            if meal.id == meal_id:
-                meal.label = new_label
-                meal.updated_at = time.time()
-                meal_repo.save(meal)
-                break
 
     # ------------------------------------------------------------------
     # Daily totals

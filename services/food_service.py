@@ -7,11 +7,11 @@ Search strategy:
   4. Cache any new OFF results locally for future offline use.
 
 Library search:
-  Text search via ``services.food_api`` against https://world.openfoodfacts.org/cgi/search.pl.
+  Text search via ``services.food_api.search_local`` over bundled USDA Foundation JSON (offline).
 
 Barcode lookup strategy:
   1. Check FoodRepository by barcode.
-  2. If not found, query Open Food Facts by barcode.
+  2. If not found, query Open Food Facts via ``services.food_api.lookup_barcode``.
   3. Cache and return; return None if not found anywhere.
 """
 
@@ -74,18 +74,18 @@ class FoodService:
         return merged
 
     def search_library_world_es(self, query: str) -> List[Food]:
-        """Search Open Food Facts by name (world facet) and cache hits locally.
+        """Search the bundled USDA Foundation library (offline) and cache hits locally.
 
-        Delegates to :func:`services.food_api.search_library`.
+        Delegates to :func:`services.food_api.search_local`.
 
         Args:
             query: Free-text search (caller should enforce min length).
 
         Returns:
-            Parsed foods, possibly empty on error or no hits.
+            Parsed foods, possibly empty if nothing matches.
         """
-        off_results = food_api.search_library(query)
-        return [self._cache_off_food(f) for f in off_results]
+        local_results = food_api.search_local(query)
+        return [self._cache_off_food(f) for f in local_results]
 
     def lookup_barcode(self, barcode: str, profile_id: str) -> Optional[Food]:  # noqa: ARG002
         """Look up a food by its EAN-13/UPC-A barcode string.
@@ -101,7 +101,7 @@ class FoodService:
         if food:
             return food
 
-        off_food = self._lookup_off_barcode(barcode)
+        off_food = food_api.lookup_barcode(barcode)
         if off_food:
             return self._cache_off_food(off_food)
 
@@ -181,26 +181,6 @@ class FoodService:
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("OFF text search failed for '%s': %s", query, exc)
             return []
-
-    def _lookup_off_barcode(self, barcode: str) -> Optional[Food]:
-        """Query Open Food Facts by barcode.
-
-        Args:
-            barcode: EAN-13/UPC-A barcode string.
-
-        Returns:
-            A Food dataclass if found, else None.
-        """
-        if self._off_client is None:
-            return None
-        try:
-            product = self._off_client.product.get(barcode)
-            if product is None:
-                return None
-            return self._off_product_to_food(product)
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("OFF barcode lookup failed for '%s': %s", barcode, exc)
-            return None
 
     @staticmethod
     def _off_product_to_food(product: object) -> Optional[Food]:

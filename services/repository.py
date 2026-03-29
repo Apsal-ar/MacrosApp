@@ -249,7 +249,7 @@ class FoodRepository(Repository):
                 continue
             f = self._row_to_food(row)
             if profile_id:
-                if f.source != "openfoodfacts" and f.created_by != profile_id:
+                if f.source not in ("openfoodfacts", "usda") and f.created_by != profile_id:
                     continue
             foods.append(f)
         foods.sort(key=lambda x: (x.name or "").lower())
