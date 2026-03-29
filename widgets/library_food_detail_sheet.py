@@ -204,13 +204,16 @@ def _thin_hline() -> MDBoxLayout:
 
 
 class LibraryFoodDetailSheet(ModalView):
-    """Nutrition detail for a library food: name, pie, macro columns, grams, Add."""
+    """Nutrition detail for a library food: name, pie, macro columns, grams, primary action."""
 
     def __init__(
         self,
         food: Food,
         on_add: Callable[[float, str], None],
         on_edit: Optional[Callable[[], None]] = None,
+        *,
+        primary_button_text: str = "Add",
+        initial_quantity_g: Optional[float] = None,
         **kwargs: object,
     ) -> None:
         kwargs.setdefault("padding", [0, 0, 0, 0])
@@ -219,6 +222,8 @@ class LibraryFoodDetailSheet(ModalView):
         self._canonical_name = (food.name or "").strip() or "Food"
         self._on_add = on_add
         self._on_edit = on_edit
+        self._primary_button_text = primary_button_text
+        self._initial_quantity_g = initial_quantity_g
         self._base: Optional[NutritionInfo] = food.nutrition
         self._macro_chart = MacroCaloriePieChart()
         self._name_row: Optional[MDBoxLayout] = None
@@ -393,8 +398,12 @@ class LibraryFoodDetailSheet(ModalView):
             line_width=1,
             radius=[r, r, r, r],
         )
+        _qty_txt = "100"
+        if self._initial_quantity_g is not None:
+            q0 = float(self._initial_quantity_g)
+            _qty_txt = f"{q0:.0f}" if abs(q0 - round(q0)) < 1e-6 else f"{q0:.1f}"
         self._qty_field = TextInput(
-            text="100",
+            text=_qty_txt,
             input_filter="float",
             multiline=False,
             write_tab=False,
@@ -448,7 +457,9 @@ class LibraryFoodDetailSheet(ModalView):
                 height=dp(48),
                 on_release=lambda *_: self._confirm_add(),
             )
-            add_btn.add_widget(MDButtonText(text="Add", halign="center"))
+            add_btn.add_widget(
+                MDButtonText(text=self._primary_button_text, halign="center")
+            )
             action_row.add_widget(add_btn)
             edit_btn = MacrosTextButton(
                 size_hint_x=0.3333,
@@ -473,7 +484,9 @@ class LibraryFoodDetailSheet(ModalView):
                 size_hint_x=1,
                 on_release=lambda *_: self._confirm_add(),
             )
-            add_btn.add_widget(MDButtonText(text="Add", halign="center"))
+            add_btn.add_widget(
+                MDButtonText(text=self._primary_button_text, halign="center")
+            )
             body.add_widget(add_btn)
 
         facts_scroll = ScrollView(

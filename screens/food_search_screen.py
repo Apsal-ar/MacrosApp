@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import uuid
 from typing import List, Optional
@@ -136,12 +137,17 @@ class FoodSearchScreen(BaseScreen):
         self._library_detail_sheet: Optional[LibraryFoodDetailSheet] = None
         self._selected_food: Optional[Food] = None
         self._search_event: Optional[object] = None
+        self._barcode_scan_targets_edit: bool = False
+        self._skip_reset_once: bool = False
 
     def on_pre_enter(self, *args: object) -> None:
         self._set_bottom_nav_visible(False)
         uid = self.get_current_user_id()
         if uid:
             self.profile_id = uid
+        if getattr(self, "_skip_reset_once", False):
+            self._skip_reset_once = False
+            return
         self._reset_ui()
 
     def on_leave(self, *args: object) -> None:
@@ -196,6 +202,29 @@ class FoodSearchScreen(BaseScreen):
             shell.ids.inner_sm.current = "tracker"
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("go_to_tracker: %s", exc)
+
+    def mark_return_from_food_edit(self) -> None:
+        """Skip full reset on next ``on_pre_enter`` when returning from FoodEditScreen."""
+        self._skip_reset_once = True
+
+    def _open_food_edit(self, food: Food) -> None:
+        """Push full-screen food editor (metadata + nutrition per 100 g)."""
+        try:
+            app = MDApp.get_running_app()
+            shell = app.root.get_screen("app")
+            sm = shell.ids.inner_sm
+            edit = sm.get_screen("food_edit")
+            edit.bind_food(food, on_barcode_scan=self._scan_barcode_for_edit_screen)
+            self._skip_reset_once = True
+            sm.current = "food_edit"
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("open food edit: %s", exc)
+            self.show_error("Could not open food editor.")
+
+    def _scan_barcode_for_edit_screen(self) -> None:
+        """Barcode camera: write scanned code into FoodEditScreen."""
+        self._barcode_scan_targets_edit = True
+        self.on_scan_pressed()
 
     def clear_search(self) -> None:
         if "search_field" in self.ids:
@@ -424,7 +453,7 @@ class FoodSearchScreen(BaseScreen):
 
         def _on_edit() -> None:
             self._library_detail_sheet = None
-            self._show_manual_form(food=food)
+            self._open_food_edit(food)
 
         self._library_detail_sheet = LibraryFoodDetailSheet(
             food=food, on_add=_on_add, on_edit=_on_edit
@@ -465,6 +494,36 @@ class FoodSearchScreen(BaseScreen):
         if not self.meal_id:
             self.show_error("Missing meal — go back and tap Add food again.")
             return
+        pid = (self.profile_id or self.get_current_user_id() or "").strip()
+        if not pid:
+            self.show_error("Sign in to save foods to My Foods.")
+            return
+
+        self.show_loading("Saving food…")
+
+        def work() -> None:
+            ok = self._food_service.save_food_on_add_to_my_foods(food, pid)
+            Clock.schedule_once(
+                lambda _dt: self._after_food_saved_for_add(
+                    ok, food, qty, display_name
+                ),
+                0,
+            )
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _after_food_saved_for_add(
+        self,
+        ok: bool,
+        food: Food,
+        qty: float,
+        display_name: Optional[str],
+    ) -> None:
+        self.hide_loading()
+        if not ok:
+            self.show_error("Could not save food to the cloud. Try again.")
+            return
+        self.show_success("Food saved to My Foods")
         try:
             app = MDApp.get_running_app()
             shell = app.root.get_screen("app")
@@ -474,7 +533,7 @@ class FoodSearchScreen(BaseScreen):
             self._reset_ui()
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("add food: %s", exc)
-            self.show_error("Could not add food.")
+            self.show_error("Could not add food to the meal.")
 
     def on_scan_pressed(self) -> None:
         if not config.ENABLE_BARCODE_SCAN:
@@ -538,6 +597,15 @@ class FoodSearchScreen(BaseScreen):
         self._on_barcode_result(barcode)
 
     def _on_barcode_result(self, barcode: str) -> None:
+        if self._barcode_scan_targets_edit:
+            self._barcode_scan_targets_edit = False
+            try:
+                shell = MDApp.get_running_app().root.get_screen("app")
+                ed = shell.ids.inner_sm.get_screen("food_edit")
+                ed.set_barcode_text(barcode)
+            except Exception:  # pylint: disable=broad-except
+                pass
+            return
         food = self._food_service.lookup_barcode(barcode, self.profile_id)
         if food:
             self._select_food(food)

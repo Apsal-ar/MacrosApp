@@ -20,12 +20,13 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from dataclasses import replace
 from typing import List, Optional
 
 import config
 from models.food import Food, NutritionInfo
 from services import food_api
-from services.repository import FoodRepository
+from services.repository import FoodRepository, Repository
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,43 @@ class FoodService:
         food.updated_at = time.time()
         self._repo.save(food)
         return food
+
+    def save_food(self, food: Food) -> Food:
+        """Persist a food create or update (library, OFF, or manual)."""
+        if not food.id:
+            food.id = str(uuid.uuid4())
+        food.updated_at = time.time()
+        self._repo.save(food)
+        return food
+
+    def save_food_on_add_to_my_foods(self, food: Food, profile_id: str) -> bool:
+        """Write to SQLite immediately, then upsert Supabase ``foods``; mark synced on HTTP OK.
+
+        Sets ``created_by`` to the current user and normalizes ``source`` to
+        ``openfoodfacts``, ``usda``, or ``manual``. When Supabase is not configured,
+        only the local write runs and this returns True.
+        """
+        if not profile_id:
+            return False
+        src = (food.source or "manual").lower()
+        if src not in ("openfoodfacts", "usda", "manual"):
+            src = "manual"
+        fid = food.id or str(uuid.uuid4())
+        food = replace(food, id=fid, created_by=profile_id, source=src, updated_at=time.time())
+        self._repo.save(food)
+        client = Repository._supabase
+        cache = Repository._cache
+        if client is None:
+            return True
+        payload = self._repo._food_to_dict(food)
+        try:
+            client.table("foods").upsert(payload).execute()
+            if cache is not None:
+                cache.mark_synced("foods", food.id)
+            return True
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Supabase foods upsert failed: %s", exc)
+            return False
 
     def delete_manual_food(self, food_id: str) -> None:
         """Remove a user-created manual food and queue a remote delete.

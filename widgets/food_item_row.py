@@ -1,38 +1,53 @@
 """Single food item row displayed inside a MealCard.
 
 Shows the food name, quantity, calorie count, and macro breakdown per item.
-Includes a delete button that fires an on_delete event.
+Tap the row to edit nutrition; delete button removes the entry.
 """
 
 from __future__ import annotations
 
 from kivy.lang import Builder
-from kivy.properties import NumericProperty, ObjectProperty, StringProperty
+from kivy.properties import NumericProperty, StringProperty
+from kivy.uix.behaviors import ButtonBehavior
 from kivymd.uix.boxlayout import MDBoxLayout
 
+
+class FoodItemTapArea(ButtonBehavior, MDBoxLayout):
+    """Tappable area (excluding delete) to open the nutrition editor."""
+
+
 Builder.load_string("""
+<FoodItemTapArea>:
+    orientation: "horizontal"
+    size_hint_x: 1
+    ripple_alpha: 0.2
+
 <FoodItemRow>:
     size_hint_y: None
     height: "60dp"
     padding: ["8dp", "4dp", "4dp", "4dp"]
     spacing: "8dp"
 
-    MDBoxLayout:
-        orientation: "vertical"
+    FoodItemTapArea:
         size_hint_x: 1
+        on_release: root.dispatch("on_edit", root.item_id)
 
-        MDLabel:
-            text: root.food_name
-            font_style: "Body"
-            role: "medium"
-            shorten: True
-            shorten_from: "right"
+        MDBoxLayout:
+            orientation: "vertical"
+            size_hint_x: 1
 
-        MDLabel:
-            text: f"{root.quantity_g:.0f}g  •  {root.calories:.0f} kcal  •  P:{root.protein_g:.1f}  C:{root.carbs_g:.1f}  F:{root.fat_g:.1f}"
-            font_style: "Body"
-            role: "small"
-            theme_text_color: "Secondary"
+            MDLabel:
+                text: root.food_name
+                font_style: "Body"
+                role: "medium"
+                shorten: True
+                shorten_from: "right"
+
+            MDLabel:
+                text: f"{root.quantity_g:.0f}g  •  {root.calories:.0f} kcal  •  P:{root.protein_g:.1f}  C:{root.carbs_g:.1f}  F:{root.fat_g:.1f}"
+                font_style: "Body"
+                role: "small"
+                theme_text_color: "Secondary"
 
     MDIconButton:
         icon: "delete-outline"
@@ -59,6 +74,7 @@ class FoodItemRow(MDBoxLayout):
 
     Events:
         on_delete: Fired when the delete button is pressed; passes item_id.
+        on_edit: Fired when the row is tapped; passes item_id.
     """
 
     item_id = StringProperty("")
@@ -69,11 +85,10 @@ class FoodItemRow(MDBoxLayout):
     carbs_g = NumericProperty(0.0)
     fat_g = NumericProperty(0.0)
 
-    __events__ = ("on_delete",)
+    __events__ = ("on_delete", "on_edit")
 
     def on_delete(self, item_id: str) -> None:  # noqa: ARG002
-        """Default handler for the on_delete event (no-op; override in parent).
+        """Default handler for on_delete (override in parent)."""
 
-        Args:
-            item_id: The MealItem UUID passed from the delete button.
-        """
+    def on_edit(self, item_id: str) -> None:  # noqa: ARG002
+        """Default handler for on_edit (override in parent)."""

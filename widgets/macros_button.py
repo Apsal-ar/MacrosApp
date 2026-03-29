@@ -64,9 +64,9 @@ def _center_label_if_no_icon(button: MDButton) -> None:
 class MacrosFilledButton(MDButton):
     """Filled primary button — same look as Caloric requirement Save."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         _apply_macros_button_kwargs(kwargs)
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         self.fbind("width", self._macros_recenter)
 
     def _macros_recenter(self, *args):
@@ -80,9 +80,9 @@ class MacrosFilledButton(MDButton):
 class MacrosOutlinedButton(MDButton):
     """Outlined secondary button — same geometry as MacrosFilledButton."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         _apply_macros_button_kwargs(kwargs)
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         self.fbind("width", self._macros_recenter)
 
     def _macros_recenter(self, *args):
@@ -96,9 +96,9 @@ class MacrosOutlinedButton(MDButton):
 class MacrosTextButton(MDButton):
     """Text-style button — same height and corners as Save (e.g. tabs, secondary text)."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         _apply_macros_button_kwargs(kwargs)
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         self.fbind("width", self._macros_recenter)
 
     def _macros_recenter(self, *args):

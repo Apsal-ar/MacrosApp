@@ -25,8 +25,25 @@ from sync.sync_manager import trigger_flush_async
 logger = logging.getLogger(__name__)
 
 
+def _salt_g_to_sodium_mg(salt_g: Optional[float]) -> Optional[float]:
+    """EU-style: salt (g per 100g) ↔ sodium (mg): sodium_mg = salt * 1000 / 2.5."""
+    if salt_g is None:
+        return None
+    return (float(salt_g) * 1000.0) / 2.5
+
+
+def _sodium_mg_to_salt_g(sodium_mg: Optional[float]) -> Optional[float]:
+    """salt (g) = sodium (mg) * 2.5 / 1000."""
+    if sodium_mg is None:
+        return None
+    return (float(sodium_mg) / 1000.0) * 2.5
+
+
 def _food_payload_to_join(fd: Dict[str, Any]) -> Dict[str, Any]:
-    """Shape stored meal_items/recipe_ingredients `foods` FK join for row parsers."""
+    """Shape stored meal_items / recipe_foods `foods` FK join for row parsers."""
+    sodium_mg = fd.get("sodium_mg")
+    if sodium_mg is None and fd.get("salt") is not None:
+        sodium_mg = _salt_g_to_sodium_mg(float(fd["salt"]))
     return {
         "name": fd.get("name"),
         "calories": fd.get("calories"),
@@ -35,7 +52,7 @@ def _food_payload_to_join(fd: Dict[str, Any]) -> Dict[str, Any]:
         "fat_g": fd.get("fat_g"),
         "fiber_g": fd.get("fiber_g"),
         "sugar_g": fd.get("sugar_g"),
-        "sodium_mg": fd.get("sodium_mg"),
+        "sodium_mg": sodium_mg,
     }
 
 
@@ -283,7 +300,9 @@ class FoodRepository(Repository):
         trigger_flush_async()
 
     def _food_to_dict(self, f: Food) -> Dict[str, Any]:
+        """JSON / Supabase `foods` row (column names match PostgREST)."""
         n = f.nutrition
+        salt = _sodium_mg_to_salt_g(n.sodium_mg) if n else None
         return {
             "id": f.id,
             "barcode": f.barcode,
@@ -294,16 +313,32 @@ class FoodRepository(Repository):
             "protein_g": n.protein_g if n else None,
             "carbs_g": n.carbs_g if n else None,
             "fat_g": n.fat_g if n else None,
+            "fat_saturated": n.fat_saturated_g if n else None,
+            "fat_trans": n.fat_trans_g if n else None,
+            "fat_polyunsaturated": n.fat_polyunsaturated_g if n else None,
+            "fat_monounsaturated": n.fat_monounsaturated_g if n else None,
             "fiber_g": n.fiber_g if n else None,
             "sugar_g": n.sugar_g if n else None,
-            "sodium_mg": n.sodium_mg if n else None,
-            "serving_size_g": f.serving_size_g,
+            "salt": salt,
+            "serving_size": f.serving_size_g,
             "created_by": f.created_by,
             "updated_at": f.updated_at or time.time(),
         }
 
     @staticmethod
     def _row_to_food(row: Dict[str, Any]) -> Food:
+        sodium_mg = row.get("sodium_mg")
+        if sodium_mg is None and row.get("salt") is not None:
+            sodium_mg = _salt_g_to_sodium_mg(float(row["salt"]))
+
+        def _g(key_new: str, key_legacy: str) -> Optional[float]:
+            v = row.get(key_new)
+            if v is None:
+                v = row.get(key_legacy)
+            if v is None:
+                return None
+            return float(v)
+
         nutrition = NutritionInfo(
             calories=row.get("calories") or 0.0,
             protein_g=row.get("protein_g") or 0.0,
@@ -311,8 +346,15 @@ class FoodRepository(Repository):
             fat_g=row.get("fat_g") or 0.0,
             fiber_g=row.get("fiber_g"),
             sugar_g=row.get("sugar_g"),
-            sodium_mg=row.get("sodium_mg"),
+            sodium_mg=sodium_mg,
+            fat_saturated_g=_g("fat_saturated", "fat_saturated_g"),
+            fat_trans_g=_g("fat_trans", "fat_trans_g"),
+            fat_polyunsaturated_g=_g("fat_polyunsaturated", "fat_polyunsaturated_g"),
+            fat_monounsaturated_g=_g("fat_monounsaturated", "fat_monounsaturated_g"),
         )
+        serving = row.get("serving_size")
+        if serving is None:
+            serving = row.get("serving_size_g")
         return Food(
             id=row["id"],
             name=row["name"],
@@ -320,7 +362,7 @@ class FoodRepository(Repository):
             brand=row.get("brand"),
             source=row.get("source") or "manual",
             nutrition=nutrition,
-            serving_size_g=row.get("serving_size_g") or 100.0,
+            serving_size_g=float(serving) if serving is not None else 100.0,
             created_by=row.get("created_by"),
             updated_at=row.get("updated_at") or 0.0,
         )
@@ -422,6 +464,16 @@ class MealItemRepository(Repository):
             return []
         rows = cache.get_meal_items_for_meal(meal_id)
         return [self._row_to_item(self._enrich_item_row(r)) for r in rows]
+
+    def get(self, item_id: str) -> Optional[MealItem]:
+        """Load a single meal item by id (for editing)."""
+        cache = Repository._cache
+        if cache is None:
+            return None
+        row = cache.get_meal_item_payload(item_id)
+        if row is None:
+            return None
+        return self._row_to_item(self._enrich_item_row(row))
 
     def _enrich_item_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
         if row.get("foods"):
@@ -550,8 +602,8 @@ class RecipeRepository(Repository):
             "quantity_g": ingredient.quantity_g,
             "updated_at": ingredient.updated_at or time.time(),
         }
-        cache.upsert_recipe_ingredient(data, from_remote=False)
-        cache.enqueue_sync("recipe_ingredients", "upsert", ingredient.id, data)
+        cache.upsert_recipe_food(data, from_remote=False)
+        cache.enqueue_sync("recipe_foods", "upsert", ingredient.id, data)
         trigger_flush_async()
 
     def delete_ingredient(self, ingredient_id: str) -> None:
@@ -559,17 +611,15 @@ class RecipeRepository(Repository):
         cache = Repository._cache
         if cache is None:
             return
-        cache.delete_recipe_ingredient(ingredient_id)
-        cache.enqueue_sync(
-            "recipe_ingredients", "delete", ingredient_id, {"id": ingredient_id}
-        )
+        cache.delete_recipe_food(ingredient_id)
+        cache.enqueue_sync("recipe_foods", "delete", ingredient_id, {"id": ingredient_id})
         trigger_flush_async()
 
     def _load_ingredients(self, recipe_id: str) -> List[RecipeIngredient]:
         cache = Repository._cache
         if cache is None:
             return []
-        rows = cache.get_recipe_ingredient_rows(recipe_id)
+        rows = cache.get_recipe_food_rows(recipe_id)
         return [self._row_to_ingredient(self._enrich_ing_row(r)) for r in rows]
 
     def _enrich_ing_row(self, row: Dict[str, Any]) -> Dict[str, Any]:

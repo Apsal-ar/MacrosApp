@@ -33,6 +33,7 @@ from utils.constants import (
     RGBA_CALORIE_INDICATOR,
     RGBA_CALORIE_TRACK,
 )
+from widgets.library_food_detail_sheet import LibraryFoodDetailSheet
 from widgets.meal_card import MealCard
 
 Builder.load_file("assets/kv/tracker.kv")
@@ -154,6 +155,7 @@ class TrackerScreen(BaseScreen):
             card.bind(
                 on_add_food=self._on_add_food_tapped,
                 on_delete_item=self._on_delete_item,
+                on_edit_item=self._on_edit_item,
             )
             card.load_meal(meal)
             self._meal_cards[meal.id] = card
@@ -243,6 +245,50 @@ class TrackerScreen(BaseScreen):
             card.add_item(item)
 
         self._update_daily_totals()
+
+    # ------------------------------------------------------------------
+    # Edit item (serving size)
+    # ------------------------------------------------------------------
+
+    def _on_edit_item(self, card: MealCard, item_id: str) -> None:  # noqa: ARG002
+        """Open full-screen Nutrition sheet (same as library) to update serving size."""
+        item_repo: MealItemRepository = self.get_repo(MealItemRepository)
+        item = item_repo.get(item_id)
+        if item is None:
+            self.show_error("Could not load this food entry.")
+            return
+
+        food = Food(
+            id=item.food_id,
+            name=item.food_name or "Food",
+            nutrition=item.nutrition_per_100g,
+            source="manual",
+            serving_size_g=100.0,
+            updated_at=item.updated_at,
+        )
+
+        def on_confirm(qty_g: float, _display_name: str) -> None:
+            if qty_g <= 0 or qty_g > 100_000:
+                self.show_error(
+                    "Enter a valid serving size between 1 and 100000 g."
+                )
+                return
+            item.quantity_g = qty_g
+            item.updated_at = time.time()
+            item_repo.save(item)
+            meal_card = self._meal_cards.get(item.meal_id)
+            if meal_card:
+                meal_card.update_item(item)
+            self._update_daily_totals()
+
+        sheet = LibraryFoodDetailSheet(
+            food=food,
+            on_add=on_confirm,
+            on_edit=None,
+            primary_button_text="UPDATE",
+            initial_quantity_g=item.quantity_g,
+        )
+        sheet.open()
 
     # ------------------------------------------------------------------
     # Delete item

@@ -94,6 +94,7 @@ class MealCard(MDCard):
     Events:
         on_add_food: Fired when the Add Food button is tapped; passes meal_id.
         on_delete_item: Fired when a FoodItemRow delete button is pressed; passes item_id.
+        on_edit_item: Fired when a food row is tapped; passes item_id.
     """
 
     meal_id = StringProperty("")
@@ -104,7 +105,7 @@ class MealCard(MDCard):
     _fat_total = NumericProperty(0.0)
     _calories_total = NumericProperty(0.0)
 
-    __events__ = ("on_add_food", "on_delete_item")
+    __events__ = ("on_add_food", "on_delete_item", "on_edit_item")
 
     @property
     def _totals_text(self) -> str:
@@ -158,6 +159,21 @@ class MealCard(MDCard):
                 self._resum_totals(container)
                 break
 
+    def update_item(self, item: MealItem) -> None:
+        """Refresh display after quantity or underlying food data changes."""
+        container = self.ids.items_container
+        s = item.scaled_nutrition
+        for child in container.children:
+            if isinstance(child, FoodItemRow) and child.item_id == item.id:
+                child.quantity_g = item.quantity_g
+                child.calories = s.calories
+                child.protein_g = s.protein_g
+                child.carbs_g = s.carbs_g
+                child.fat_g = s.fat_g
+                child.food_name = item.food_name
+                break
+        self._resum_totals(container)
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
@@ -179,7 +195,10 @@ class MealCard(MDCard):
             carbs_g=s.carbs_g,
             fat_g=s.fat_g,
         )
-        row.bind(on_delete=lambda _, iid: self.dispatch("on_delete_item", iid))
+        row.bind(
+            on_delete=lambda _, iid: self.dispatch("on_delete_item", iid),
+            on_edit=lambda _, iid: self.dispatch("on_edit_item", iid),
+        )
         return row
 
     def _recalculate_totals(self, items: List[MealItem]) -> None:
@@ -204,3 +223,6 @@ class MealCard(MDCard):
 
     def on_delete_item(self, item_id: str) -> None:  # noqa: ARG002
         """Default no-op for on_delete_item."""
+
+    def on_edit_item(self, item_id: str) -> None:  # noqa: ARG002
+        """Default no-op for on_edit_item."""

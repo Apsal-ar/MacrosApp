@@ -21,7 +21,7 @@ _TABLE_ORDER = {
     "goals": 1,
     "foods": 2,
     "recipes": 3,
-    "recipe_ingredients": 4,
+    "recipe_foods": 4,
     "meals": 5,
     "meal_items": 6,
 }
@@ -32,19 +32,19 @@ _PULL_ORDER = [
     "goals",
     "foods",
     "recipes",
-    "recipe_ingredients",
+    "recipe_foods",
     "meals",
     "meal_items",
 ]
 
 _MEAL_ITEM_SELECT = (
     "id, meal_id, food_id, quantity_g, updated_at, "
-    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
+    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, salt)"
 )
 
-_RECIPE_ING_SELECT = (
+_RECIPE_FOODS_SELECT = (
     "id, recipe_id, food_id, quantity_g, updated_at, "
-    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)"
+    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, salt)"
 )
 
 
@@ -52,6 +52,11 @@ def _strip_sync_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Remove cache-only keys before sending to Supabase."""
     out = {k: v for k, v in payload.items() if k not in ("sync_status",)}
     return out
+
+
+def _foods_payload_for_remote(clean: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure food upsert matches Supabase ``foods`` columns (no cache-only keys)."""
+    return dict(clean)
 
 
 class SyncManager:
@@ -92,6 +97,8 @@ class SyncManager:
         """Drain queue: push to Supabase, dequeue successes, retry failures."""
         if self._sb is None:
             return
+        if self._profile_id:
+            self._cache.requeue_unsynced_outbound(self._profile_id)
         batch = self._queue.peek_batch(100)
         if not batch:
             return
@@ -118,6 +125,8 @@ class SyncManager:
 
     def _upsert_with_profile_fallback(self, table: str, clean: Dict[str, Any]) -> None:
         tbl = self._sb.table(table)
+        if table == "foods":
+            clean = _foods_payload_for_remote(clean)
         try:
             tbl.upsert(clean).execute()
         except Exception as exc:  # pylint: disable=broad-except
@@ -196,13 +205,13 @@ class SyncManager:
                 self._cache.upsert_recipe(row, from_remote=True)
             rid = row["id"]
             ir = (
-                self._sb.table("recipe_ingredients")
-                .select(_RECIPE_ING_SELECT)
+                self._sb.table("recipe_foods")
+                .select(_RECIPE_FOODS_SELECT)
                 .eq("recipe_id", rid)
                 .execute()
             )
             for ing in ir.data or []:
-                self._cache.upsert_recipe_ingredient(ing, from_remote=True)
+                self._cache.upsert_recipe_food(ing, from_remote=True)
         self._cache.set_recipes_list_fetched(profile_id)
 
     def _pull_meals(self, profile_id: str) -> None:

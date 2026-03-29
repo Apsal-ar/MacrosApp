@@ -14,6 +14,17 @@ logger = logging.getLogger(__name__)
 
 _SYNC_STATUSES = frozenset({"synced", "pending", "conflict"})
 
+# Tables that store `synced` (0/1): local row is pushed until Supabase confirms.
+_TABLES_WITH_SYNCED_FLAG = frozenset(
+    {
+        "foods",
+        "recipes",
+        "recipe_foods",
+        "meals",
+        "meal_items",
+    }
+)
+
 
 class CacheDB:
     """Thread-safe local cache; mirrors Supabase rows as JSON with sync metadata."""
@@ -90,7 +101,8 @@ class CacheDB:
                 id TEXT PRIMARY KEY,
                 payload TEXT NOT NULL,
                 updated_at REAL NOT NULL,
-                sync_status TEXT NOT NULL DEFAULT 'synced'
+                sync_status TEXT NOT NULL DEFAULT 'synced',
+                synced INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS meals (
@@ -100,7 +112,8 @@ class CacheDB:
                 meal_number INTEGER NOT NULL,
                 payload TEXT NOT NULL,
                 updated_at REAL NOT NULL,
-                sync_status TEXT NOT NULL DEFAULT 'synced'
+                sync_status TEXT NOT NULL DEFAULT 'synced',
+                synced INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_meals_profile_date
                 ON meals(profile_id, date);
@@ -111,6 +124,7 @@ class CacheDB:
                 payload TEXT NOT NULL,
                 updated_at REAL NOT NULL,
                 sync_status TEXT NOT NULL DEFAULT 'synced',
+                synced INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(meal_id) REFERENCES meals(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_meal_items_meal ON meal_items(meal_id);
@@ -127,19 +141,21 @@ class CacheDB:
                 profile_id TEXT NOT NULL,
                 payload TEXT NOT NULL,
                 updated_at REAL NOT NULL,
-                sync_status TEXT NOT NULL DEFAULT 'synced'
+                sync_status TEXT NOT NULL DEFAULT 'synced',
+                synced INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_recipes_profile ON recipes(profile_id);
 
-            CREATE TABLE IF NOT EXISTS recipe_ingredients (
+            CREATE TABLE IF NOT EXISTS recipe_foods (
                 id TEXT PRIMARY KEY,
                 recipe_id TEXT NOT NULL,
                 payload TEXT NOT NULL,
                 updated_at REAL NOT NULL,
                 sync_status TEXT NOT NULL DEFAULT 'synced',
+                synced INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
             );
-            CREATE INDEX IF NOT EXISTS idx_recipe_ing_recipe ON recipe_ingredients(recipe_id);
+            CREATE INDEX IF NOT EXISTS idx_recipe_foods_recipe ON recipe_foods(recipe_id);
 
             CREATE TABLE IF NOT EXISTS sync_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,6 +170,43 @@ class CacheDB:
             CREATE INDEX IF NOT EXISTS idx_sync_queue_created ON sync_queue(created_at);
             """
         )
+        self._migrate_add_synced_column()
+        self._migrate_recipe_foods_rename()
+
+    def _migrate_add_synced_column(self) -> None:
+        """Add ``synced`` to existing installs and align with ``sync_status``."""
+        assert self._conn is not None
+        c = self._conn
+        for table in _TABLES_WITH_SYNCED_FLAG:
+            try:
+                c.execute(
+                    f"ALTER TABLE {table} ADD COLUMN synced INTEGER NOT NULL DEFAULT 0"
+                )
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
+        for table in _TABLES_WITH_SYNCED_FLAG:
+            c.execute(
+                f"UPDATE {table} SET synced = 1 WHERE sync_status = 'synced'"
+            )
+        c.commit()
+
+    def _migrate_recipe_foods_rename(self) -> None:
+        """Rename legacy ``recipe_ingredients`` SQLite table to ``recipe_foods``."""
+        assert self._conn is not None
+        c = self._conn
+        cur = c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='recipe_ingredients'"
+        )
+        if not cur.fetchone():
+            return
+        cur2 = c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='recipe_foods'"
+        )
+        if cur2.fetchone():
+            return
+        c.execute("ALTER TABLE recipe_ingredients RENAME TO recipe_foods")
+        c.commit()
 
     # ------------------------------------------------------------------
     # Generic helpers
@@ -164,11 +217,14 @@ class CacheDB:
         return str(uuid.uuid4())
 
     def mark_synced(self, table: str, row_id: str) -> None:
-        """Set sync_status to 'synced' for a cached row."""
+        """Set sync_status to 'synced' and ``synced=1`` after a successful Supabase write."""
         col = _pk_column_for(table)
         if not col:
             return
-        sql = f"UPDATE {table} SET sync_status='synced' WHERE {col}=?"
+        if table in _TABLES_WITH_SYNCED_FLAG:
+            sql = f"UPDATE {table} SET sync_status='synced', synced=1 WHERE {col}=?"
+        else:
+            sql = f"UPDATE {table} SET sync_status='synced' WHERE {col}=?"
         with self._lock:
             if self._conn is None:
                 return
@@ -181,11 +237,20 @@ class CacheDB:
         col = _pk_column_for(table)
         if not col:
             return
-        sql = f"UPDATE {table} SET sync_status=? WHERE {col}=?"
         with self._lock:
             if self._conn is None:
                 return
-            self._conn.execute(sql, (status, row_id))
+            if table in _TABLES_WITH_SYNCED_FLAG:
+                synced_val = 1 if status == "synced" else 0
+                self._conn.execute(
+                    f"UPDATE {table} SET sync_status=?, synced=? WHERE {col}=?",
+                    (status, synced_val, row_id),
+                )
+            else:
+                self._conn.execute(
+                    f"UPDATE {table} SET sync_status=? WHERE {col}=?",
+                    (status, row_id),
+                )
             self._conn.commit()
 
     def is_cache_empty_for_user(self, profile_id: str) -> bool:
@@ -210,7 +275,7 @@ class CacheDB:
                 "meals",
                 "meal_items",
                 "recipes",
-                "recipe_ingredients",
+                "recipe_foods",
             ):
                 cur = self._conn.execute(f"SELECT COUNT(*) FROM {t}")
                 n += int(cur.fetchone()[0])
@@ -269,7 +334,7 @@ class CacheDB:
                 "meal_items",
                 "meal_date_cache",
                 "recipes",
-                "recipe_ingredients",
+                "recipe_foods",
                 "foods",
             ):
                 self._conn.execute(f"DELETE FROM {table}")
@@ -370,13 +435,14 @@ class CacheDB:
         ts = float(row.get("updated_at") or time.time())
         fid = row["id"]
         st = "synced" if from_remote else "pending"
+        synced_val = 1 if from_remote else 0
         with self._lock:
             if self._conn is None:
                 return
             self._conn.execute(
-                """INSERT OR REPLACE INTO foods(id, payload, updated_at, sync_status)
-                   VALUES(?,?,?,?)""",
-                (fid, payload, ts, st),
+                """INSERT OR REPLACE INTO foods(id, payload, updated_at, sync_status, synced)
+                   VALUES(?,?,?,?,?)""",
+                (fid, payload, ts, st, synced_val),
             )
             self._conn.commit()
 
@@ -460,14 +526,15 @@ class CacheDB:
         date = row["date"]
         meal_number = int(row.get("meal_number") or 0)
         st = "synced" if from_remote else "pending"
+        synced_val = 1 if from_remote else 0
         with self._lock:
             if self._conn is None:
                 return
             self._conn.execute(
                 """INSERT OR REPLACE INTO meals
-                (id, profile_id, date, meal_number, payload, updated_at, sync_status)
-                VALUES(?,?,?,?,?,?,?)""",
-                (mid, profile_id, date, meal_number, payload, ts, st),
+                (id, profile_id, date, meal_number, payload, updated_at, sync_status, synced)
+                VALUES(?,?,?,?,?,?,?,?)""",
+                (mid, profile_id, date, meal_number, payload, ts, st, synced_val),
             )
             self._conn.commit()
 
@@ -521,13 +588,14 @@ class CacheDB:
         iid = row["id"]
         meal_id = row["meal_id"]
         st = "synced" if from_remote else "pending"
+        synced_val = 1 if from_remote else 0
         with self._lock:
             if self._conn is None:
                 return
             self._conn.execute(
-                """INSERT OR REPLACE INTO meal_items(id, meal_id, payload, updated_at, sync_status)
-                   VALUES(?,?,?,?,?)""",
-                (iid, meal_id, payload, ts, st),
+                """INSERT OR REPLACE INTO meal_items(id, meal_id, payload, updated_at, sync_status, synced)
+                   VALUES(?,?,?,?,?,?)""",
+                (iid, meal_id, payload, ts, st, synced_val),
             )
             self._conn.commit()
 
@@ -553,6 +621,23 @@ class CacheDB:
                 except json.JSONDecodeError:
                     continue
         return rows
+
+    def get_meal_item_payload(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """Return decoded meal_items row JSON, or None if missing."""
+        with self._lock:
+            if self._conn is None:
+                return None
+            cur = self._conn.execute(
+                "SELECT payload FROM meal_items WHERE id=?",
+                (item_id,),
+            )
+            r = cur.fetchone()
+            if not r:
+                return None
+            try:
+                return json.loads(r[0])
+            except json.JSONDecodeError:
+                return None
 
     def clear_meals_for_date(self, profile_id: str, date: str) -> None:
         with self._lock:
@@ -592,7 +677,7 @@ class CacheDB:
             rids = [r[0] for r in cur.fetchall()]
             for rid in rids:
                 self._conn.execute(
-                    "DELETE FROM recipe_ingredients WHERE recipe_id=?", (rid,)
+                    "DELETE FROM recipe_foods WHERE recipe_id=?", (rid,)
                 )
             self._conn.execute("DELETE FROM recipes WHERE profile_id=?", (profile_id,))
             self._conn.commit()
@@ -606,17 +691,18 @@ class CacheDB:
         rid = row["id"]
         profile_id = row["profile_id"]
         st = "synced" if from_remote else "pending"
+        synced_val = 1 if from_remote else 0
         with self._lock:
             if self._conn is None:
                 return
             self._conn.execute(
-                """INSERT OR REPLACE INTO recipes(id, profile_id, payload, updated_at, sync_status)
-                   VALUES(?,?,?,?,?)""",
-                (rid, profile_id, payload, ts, st),
+                """INSERT OR REPLACE INTO recipes(id, profile_id, payload, updated_at, sync_status, synced)
+                   VALUES(?,?,?,?,?,?)""",
+                (rid, profile_id, payload, ts, st, synced_val),
             )
             self._conn.commit()
 
-    def upsert_recipe_ingredient(
+    def upsert_recipe_food(
         self, row: Dict[str, Any], *, from_remote: bool = False
     ) -> None:
         payload = json.dumps(row, default=str)
@@ -624,22 +710,23 @@ class CacheDB:
         iid = row["id"]
         recipe_id = row["recipe_id"]
         st = "synced" if from_remote else "pending"
+        synced_val = 1 if from_remote else 0
         with self._lock:
             if self._conn is None:
                 return
             self._conn.execute(
-                """INSERT OR REPLACE INTO recipe_ingredients(id, recipe_id, payload, updated_at, sync_status)
-                   VALUES(?,?,?,?,?)""",
-                (iid, recipe_id, payload, ts, st),
+                """INSERT OR REPLACE INTO recipe_foods(id, recipe_id, payload, updated_at, sync_status, synced)
+                   VALUES(?,?,?,?,?,?)""",
+                (iid, recipe_id, payload, ts, st, synced_val),
             )
             self._conn.commit()
 
-    def delete_recipe_ingredient(self, ingredient_id: str) -> None:
+    def delete_recipe_food(self, ingredient_id: str) -> None:
         with self._lock:
             if self._conn is None:
                 return
             self._conn.execute(
-                "DELETE FROM recipe_ingredients WHERE id=?", (ingredient_id,)
+                "DELETE FROM recipe_foods WHERE id=?", (ingredient_id,)
             )
             self._conn.commit()
 
@@ -648,7 +735,7 @@ class CacheDB:
             if self._conn is None:
                 return
             self._conn.execute(
-                "DELETE FROM recipe_ingredients WHERE recipe_id=?", (recipe_id,)
+                "DELETE FROM recipe_foods WHERE recipe_id=?", (recipe_id,)
             )
             self._conn.execute("DELETE FROM recipes WHERE id=?", (recipe_id,))
             self._conn.commit()
@@ -684,13 +771,13 @@ class CacheDB:
                     continue
         return rows
 
-    def get_recipe_ingredient_rows(self, recipe_id: str) -> List[Dict[str, Any]]:
+    def get_recipe_food_rows(self, recipe_id: str) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         with self._lock:
             if self._conn is None:
                 return rows
             cur = self._conn.execute(
-                "SELECT payload FROM recipe_ingredients WHERE recipe_id=?",
+                "SELECT payload FROM recipe_foods WHERE recipe_id=?",
                 (recipe_id,),
             )
             for (payload,) in cur.fetchall():
@@ -753,6 +840,76 @@ class CacheDB:
             )
             self._conn.commit()
 
+    def sync_queue_has_pending(
+        self, table: str, row_id: str, operation: str
+    ) -> bool:
+        """True if the durable queue already has this op (avoid duplicate enqueue)."""
+        with self._lock:
+            if self._conn is None:
+                return False
+            cur = self._conn.execute(
+                "SELECT 1 FROM sync_queue WHERE table_name=? AND row_id=? AND operation=? LIMIT 1",
+                (table, row_id, operation),
+            )
+            return cur.fetchone() is not None
+
+    def requeue_unsynced_outbound(self, profile_id: str) -> None:
+        """Enqueue upserts for rows with ``synced=0`` (retry after failed upload or app restart)."""
+        if not profile_id:
+            return
+        with self._lock:
+            if self._conn is None:
+                return
+            cur = self._conn.execute("SELECT id, payload FROM foods WHERE synced=0")
+            food_rows = list(cur.fetchall())
+            cur = self._conn.execute(
+                "SELECT id, payload FROM recipes WHERE profile_id=? AND synced=0",
+                (profile_id,),
+            )
+            recipe_rows = list(cur.fetchall())
+            cur = self._conn.execute(
+                """
+                SELECT recipe_foods.id, recipe_foods.payload
+                FROM recipe_foods
+                JOIN recipes ON recipes.id = recipe_foods.recipe_id
+                WHERE recipes.profile_id = ? AND recipe_foods.synced = 0
+                """,
+                (profile_id,),
+            )
+            ing_rows = list(cur.fetchall())
+            cur = self._conn.execute(
+                "SELECT id, payload FROM meals WHERE profile_id=? AND synced=0",
+                (profile_id,),
+            )
+            meal_rows = list(cur.fetchall())
+            cur = self._conn.execute(
+                """
+                SELECT meal_items.id, meal_items.payload
+                FROM meal_items
+                JOIN meals ON meals.id = meal_items.meal_id
+                WHERE meals.profile_id = ? AND meal_items.synced = 0
+                """,
+                (profile_id,),
+            )
+            item_rows = list(cur.fetchall())
+
+        batches = (
+            ("foods", food_rows),
+            ("recipes", recipe_rows),
+            ("recipe_foods", ing_rows),
+            ("meals", meal_rows),
+            ("meal_items", item_rows),
+        )
+        for table, rows in batches:
+            for row_id, payload in rows:
+                if self.sync_queue_has_pending(table, row_id, "upsert"):
+                    continue
+                try:
+                    pl = json.loads(payload)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                self.enqueue_sync(table, "upsert", row_id, pl)
+
 
 def _pk_column_for(table: str) -> Optional[str]:
     if table in (
@@ -762,7 +919,7 @@ def _pk_column_for(table: str) -> Optional[str]:
         "meals",
         "meal_items",
         "recipes",
-        "recipe_ingredients",
+        "recipe_foods",
     ):
         return "id"
     return None
