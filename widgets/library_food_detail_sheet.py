@@ -10,13 +10,15 @@ from kivy.core.window import Window
 from kivy.graphics import Color, Ellipse
 from kivy.lang import Builder
 from kivy.metrics import dp
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.modalview import ModalView
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDButtonText, MDIconButton
 from kivymd.uix.label import MDLabel
-from kivymd.uix.textfield import MDTextField, MDTextFieldMaxLengthText
+from kivymd.uix.textfield import MDTextField
 
 from models.food import Food, NutritionInfo
 from utils.constants import (
@@ -53,10 +55,10 @@ def _macro_calories_from_grams(p: float, c: float, f: float) -> tuple[float, flo
 
 
 def _kcal_label_text(kcal: float) -> str:
-    """Compact kcal string for slice labels."""
+    """Numeric-only label on pie slices (no unit)."""
     if kcal < 1.0:
-        return f"{kcal:.1f} kcal"
-    return f"{kcal:.0f} kcal"
+        return f"{kcal:.1f}"
+    return f"{kcal:.0f}"
 
 
 class MacroCaloriePieChart(FloatLayout):
@@ -74,7 +76,7 @@ class MacroCaloriePieChart(FloatLayout):
         self._pie_canvas = Widget(size_hint=(1, 1), pos_hint={"x": 0, "y": 0})
         lbl_kw = {
             "size_hint": (None, None),
-            "size": (dp(80), dp(28)),
+            "size": (dp(52), dp(28)),
             "bold": True,
             "halign": "center",
             "valign": "middle",
@@ -191,6 +193,15 @@ class MacroCaloriePieChart(FloatLayout):
             lbl.pos = (x - lw / 2.0, y - lh / 2.0)
 
 
+def _thin_hline() -> MDBoxLayout:
+    """1dp horizontal rule; same as nutrition-facts row separators in this sheet."""
+    return MDBoxLayout(
+        size_hint_y=None,
+        height=dp(1),
+        md_bg_color=(0.32, 0.33, 0.36, 1),
+    )
+
+
 class LibraryFoodDetailSheet(ModalView):
     """Nutrition detail for a library food: name, pie, macro columns, grams, Add."""
 
@@ -200,6 +211,7 @@ class LibraryFoodDetailSheet(ModalView):
         on_add: Callable[[float, str], None],
         **kwargs: object,
     ) -> None:
+        kwargs.setdefault("padding", [0, 0, 0, 0])
         super().__init__(**kwargs)
         self._food = food
         self._canonical_name = (food.name or "").strip() or "Food"
@@ -208,138 +220,141 @@ class LibraryFoodDetailSheet(ModalView):
         self._macro_chart = MacroCaloriePieChart()
         self._name_row: Optional[MDBoxLayout] = None
         self._pie_box: Optional[MDBoxLayout] = None
-        self._name_block: Optional[MDBoxLayout] = None
-        self._name_field: Optional[MDTextField] = None
-        self._canonical_lbl: Optional[MDLabel] = None
+        self._title_lbl: Optional[MDLabel] = None
         self._qty_field: Optional[MDTextField] = None
         self._lbl_cal: Optional[MDLabel] = None
         self._lbl_p: Optional[MDLabel] = None
         self._lbl_c: Optional[MDLabel] = None
         self._lbl_f: Optional[MDLabel] = None
+        self._facts_box: Optional[MDBoxLayout] = None
         self._build()
 
     def _build(self) -> None:
-        root = MDBoxLayout(orientation="vertical", md_bg_color=RGBA_BG)
+        root = MDBoxLayout(
+            orientation="vertical",
+            md_bg_color=RGBA_BG,
+            spacing=0,
+            padding=[0, 0, 0, 0],
+        )
         food = self._food
 
-        # Header (teal)
+        # Header (teal): back left, title centered on full width.
         header = MDBoxLayout(
             size_hint_y=None,
             height=dp(56),
-            padding=[dp(4), 0, dp(8), 0],
+            padding=0,
             md_bg_color=RGBA_PRIMARY,
         )
-        header.add_widget(
-            MDIconButton(
-                icon="arrow-left",
-                theme_text_color="Custom",
-                text_color=(1, 1, 1, 1),
-                on_release=lambda *_: self.dismiss(),
-            )
-        )
-        title = MDLabel(
+        header_inner = FloatLayout(size_hint=(1, 1))
+        hdr_title = MDLabel(
             text="Nutrition",
             font_style="Title",
             role="medium",
             theme_text_color="Custom",
             text_color=(1, 1, 1, 1),
-            size_hint_x=1,
-            halign="left",
-            valign="center",
+            halign="center",
+            valign="middle",
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+            size_hint=(1, None),
+            text_size=(None, None),
         )
-        header.add_widget(title)
+        header_inner.add_widget(hdr_title)
+        header_inner.add_widget(
+            MDIconButton(
+                icon="arrow-left",
+                theme_text_color="Custom",
+                text_color=(1, 1, 1, 1),
+                pos_hint={"x": 0, "center_y": 0.5},
+                on_release=lambda *_: self.dismiss(),
+            )
+        )
+        header.add_widget(header_inner)
         root.add_widget(header)
 
         body = MDBoxLayout(
             orientation="vertical",
             spacing=dp(16),
-            padding=[dp(16), dp(20), dp(16), dp(16)],
+            padding=[dp(16), 0, dp(16), dp(16)],
             size_hint_y=1,
         )
 
-        # Name + pie row — height and pie box size follow window (see _sync_top_layout).
+        # Food name (centered in left column) + pie card — pie vertically centered in row.
         name_row = MDBoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=max(dp(160), min(Window.height * 0.26, dp(320))),
+            height=max(dp(120), min(Window.height * 0.22, dp(280))),
             spacing=dp(12),
+            padding=[0, 0, 0, 0],
         )
-        name_col = MDBoxLayout(
-            orientation="vertical",
+        name_anchor = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
             size_hint_x=1,
-            spacing=dp(6),
+            padding=[0, 0, 0, 0],
         )
-        _white = (0.97, 0.98, 1.0, 1)
-        # KivyMD 2: max length is set via MDTextFieldMaxLengthText child, not a kwarg.
-        self._name_field = MDTextField(
-            MDTextFieldMaxLengthText(max_text_length=200),
+        self._title_lbl = MDLabel(
             text=self._canonical_name,
-            hint_text="Name",
-            mode="filled",
-            size_hint_y=None,
-            height=dp(56),
             font_style="Title",
-            role="medium",
-            theme_text_color="Custom",
-            text_color_normal=_white,
-            text_color_focus=_white,
-            line_color_focus=tuple(RGBA_PRIMARY[:4]),
-        )
-        name_col.add_widget(self._name_field)
-        self._canonical_lbl = MDLabel(
-            text=self._canonical_name,
-            font_style="Body",
             role="small",
             theme_text_color="Custom",
             text_color=tuple(hex_to_rgba(COLOR_CARBS)),
-            size_hint_y=None,
-            height=dp(80),
-            halign="left",
-            valign="top",
-            shorten=True,
-            shorten_from="right",
-            max_lines=4,
+            size_hint=(1, None),
+            halign="center",
+            valign="middle",
+            shorten=False,
+            max_lines=0,
         )
-        self._canonical_lbl.bind(size=self._on_canonical_label_size)
-        name_col.add_widget(self._canonical_lbl)
-        name_row.add_widget(name_col)
+
+        def _title_wrap_width(*_a: object) -> None:
+            if self._title_lbl is None:
+                return
+            w = max(name_anchor.width - dp(4), 1.0)
+            self._title_lbl.text_size = (w, None)
+
+        name_anchor.bind(width=_title_wrap_width)
+        name_anchor.add_widget(self._title_lbl)
+        Clock.schedule_once(lambda _dt: _title_wrap_width(), 0)
+        name_row.add_widget(name_anchor)
         pie_box = MDBoxLayout(
             orientation="vertical",
             size_hint=(None, None),
             size=(dp(120), dp(120)),
-            md_bg_color=RGBA_SURFACE,
+            pos_hint={"center_y": 0.5},
+            md_bg_color=RGBA_BG,
             radius=[dp(8), dp(8), dp(8), dp(8)],
             padding=[dp(4), dp(4), dp(4), dp(4)],
         )
         pie_box.add_widget(self._macro_chart)
         name_row.add_widget(pie_box)
 
-        name_block = MDBoxLayout(
-            orientation="vertical",
-            size_hint_y=None,
-            height=dp(200),
-            spacing=dp(8),
-        )
-        name_block.add_widget(name_row)
-        body.add_widget(name_block)
-
-        # Four macro columns
+        # Four macro columns (stacked with name_row below — no gap)
         row4 = MDBoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=dp(84),
+            height=dp(70),
             spacing=dp(6),
             padding=[0, 0, 0, 0],
         )
-        col_cal, self._lbl_cal = self._macro_column("Calories", RGBA_PRIMARY)
-        col_p, self._lbl_p = self._macro_column("Protein", RGBA_PROTEIN)
-        col_c, self._lbl_c = self._macro_column("Carbs", RGBA_CARBS)
-        col_f, self._lbl_f = self._macro_column("Fat", RGBA_FAT)
+        col_cal, self._lbl_cal = self._macro_column("calories", RGBA_PRIMARY)
+        col_p, self._lbl_p = self._macro_column("protein", RGBA_PROTEIN)
+        col_c, self._lbl_c = self._macro_column("carbs", RGBA_CARBS)
+        col_f, self._lbl_f = self._macro_column("fat", RGBA_FAT)
         row4.add_widget(col_cal)
         row4.add_widget(col_p)
         row4.add_widget(col_c)
         row4.add_widget(col_f)
-        body.add_widget(row4)
+
+        summary_stack = MDBoxLayout(
+            orientation="vertical",
+            spacing=0,
+            size_hint_y=None,
+        )
+        summary_stack.add_widget(name_row)
+        summary_stack.add_widget(_thin_hline())
+        summary_stack.add_widget(row4)
+        summary_stack.add_widget(_thin_hline())
+        summary_stack.bind(minimum_height=summary_stack.setter("height"))
+        body.add_widget(summary_stack)
 
         # Grams: narrow field (~30% width) + label, then Add directly below
         qty_row = MDBoxLayout(
@@ -385,14 +400,26 @@ class LibraryFoodDetailSheet(ModalView):
         add_btn.add_widget(MDButtonText(text="Add", halign="center"))
         body.add_widget(add_btn)
 
-        body.add_widget(MDBoxLayout(size_hint_y=1))
+        facts_scroll = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=False,
+            bar_width=dp(5),
+        )
+        self._facts_box = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=0,
+            padding=[dp(4), dp(12), dp(4), dp(8)],
+        )
+        self._facts_box.bind(minimum_height=self._facts_box.setter("height"))
+        facts_scroll.add_widget(self._facts_box)
+        body.add_widget(facts_scroll)
 
         root.add_widget(body)
 
         self.add_widget(root)
         self._name_row = name_row
         self._pie_box = pie_box
-        self._name_block = name_block
         name_row.bind(width=self._sync_top_layout, height=self._sync_top_layout)
         Window.bind(width=self._sync_top_layout, height=self._sync_top_layout)
         self.bind(on_dismiss=self._on_dismiss_unbind_layout)
@@ -406,55 +433,56 @@ class LibraryFoodDetailSheet(ModalView):
 
     def _sync_top_layout(self, *_args: object) -> None:
         """Resize name row and square pie card from window and row width (responsive)."""
-        if not self._name_row or not self._pie_box or not self._name_block:
+        if not self._name_row or not self._pie_box:
             return
         wh = max(float(Window.height), 1.0)
-        row_h = max(dp(160), min(wh * 0.26, dp(320)))
+        row_h = max(dp(120), min(wh * 0.22, dp(280)))
         self._name_row.height = row_h
         rw = self._name_row.width
         if rw > 10:
             side = min(rw * 0.40, row_h * 0.92)
             side = max(dp(88), min(side, dp(300)))
             self._pie_box.size = (side, side)
-        self._name_block.height = row_h + dp(8)
-
-    def _on_canonical_label_size(self, instance: MDLabel, size: tuple[float, float]) -> None:
-        if size[0] > 1:
-            instance.text_size = (size[0], None)
 
     def _macro_column(
-        self, title: str, rgba: list[float]
+        self, name_below: str, rgba: list[float]
     ) -> tuple[MDBoxLayout, MDLabel]:
         col = MDBoxLayout(
             orientation="vertical",
-            spacing=dp(4),
-            md_bg_color=RGBA_SURFACE,
+            spacing=0,
+            md_bg_color=RGBA_BG,
             radius=[dp(8), dp(8), dp(8), dp(8)],
-            padding=[dp(8), dp(10), dp(8), dp(10)],
+            padding=[dp(8), dp(2), dp(8), dp(2)],
             size_hint_x=1,
         )
-        t = MDLabel(
-            text=title,
-            font_style="Body",
-            role="small",
-            theme_text_color="Custom",
-            text_color=(0.65, 0.68, 0.72, 1),
-            halign="center",
-            size_hint_y=None,
-            height=dp(18),
-        )
+        tc = tuple(rgba[:4])
         val = MDLabel(
             text="0",
             font_style="Title",
             role="small",
+            theme_font_size="Custom",
+            font_size="20sp",
+            bold=True,
             theme_text_color="Custom",
-            text_color=tuple(rgba[:4]),
+            text_color=tc,
             halign="center",
+            valign="bottom",
             size_hint_y=None,
             height=dp(30),
         )
-        col.add_widget(t)
+        t = MDLabel(
+            text=name_below,
+            font_style="Body",
+            role="small",
+            theme_text_color="Custom",
+            text_color=tc,
+            halign="center",
+            valign="top",
+            size_hint_y=None,
+            height=dp(16),
+        )
         col.add_widget(val)
+        col.add_widget(t)
         return col, val
 
     def _on_qty_text(self, _instance: MDTextField, text: str) -> None:
@@ -477,20 +505,124 @@ class LibraryFoodDetailSheet(ModalView):
         cal = scaled.calories
 
         if self._lbl_cal:
-            self._lbl_cal.text = f"{cal:.0f} kcal"
+            self._lbl_cal.text = f"{cal:.0f}"
         if self._lbl_p:
-            self._lbl_p.text = f"{p:.1f} g"
+            self._lbl_p.text = f"{p:.1f}"
         if self._lbl_c:
-            self._lbl_c.text = f"{c:.1f} g"
+            self._lbl_c.text = f"{c:.1f}"
         if self._lbl_f:
-            self._lbl_f.text = f"{fd:.1f} g"
+            self._lbl_f.text = f"{fd:.1f}"
         self._macro_chart.set_macros_g(p, c, fd)
+        self._refresh_nutrition_facts(scaled)
+
+    def _nf_divider(self) -> None:
+        if self._facts_box is None:
+            return
+        self._facts_box.add_widget(_thin_hline())
+
+    def _nf_row(
+        self,
+        label: str,
+        value: str,
+        rgba: tuple[float, float, float, float],
+        indent: float = 0.0,
+    ) -> None:
+        if self._facts_box is None:
+            return
+        tc = tuple(rgba[:4])
+        row = MDBoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(30),
+            padding=[dp(indent), dp(4), dp(4), dp(4)],
+            spacing=dp(8),
+        )
+        row.add_widget(
+            MDLabel(
+                text=label,
+                font_style="Body",
+                role="small",
+                theme_text_color="Custom",
+                text_color=tc,
+                halign="left",
+                valign="middle",
+                size_hint_x=0.62,
+                shorten=True,
+                shorten_from="right",
+            )
+        )
+        row.add_widget(
+            MDLabel(
+                text=value,
+                font_style="Body",
+                role="small",
+                theme_text_color="Custom",
+                text_color=tc,
+                halign="right",
+                valign="middle",
+                size_hint_x=0.38,
+            )
+        )
+        self._facts_box.add_widget(row)
+
+    @staticmethod
+    def _fmt_g(x: float) -> str:
+        return f"{x:.1f} g"
+
+    def _refresh_nutrition_facts(self, n: NutritionInfo) -> None:
+        """Rebuild detailed nutrition list for the current portion (scaled values)."""
+        if self._facts_box is None:
+            return
+        self._facts_box.clear_widgets()
+        teal = tuple(RGBA_PRIMARY[:4])
+        fat_c = tuple(RGBA_FAT[:4])
+        carb_c = tuple(RGBA_CARBS[:4])
+        prot_c = tuple(RGBA_PROTEIN[:4])
+        salt_c = (0.72, 0.74, 0.78, 1.0)
+        white = (1.0, 1.0, 1.0, 1.0)
+
+        self._facts_box.add_widget(
+            MDLabel(
+                text="Nutrition facts",
+                font_style="Title",
+                role="small",
+                theme_text_color="Custom",
+                text_color=(0.7, 0.72, 0.76, 1),
+                size_hint_y=None,
+                height=dp(30),
+                halign="left",
+                valign="bottom",
+            )
+        )
+        self._nf_divider()
+
+        self._nf_row("Calories", f"{n.calories:.0f} kcal", teal)
+        self._nf_divider()
+        self._nf_row("Fat (g)", self._fmt_g(n.fat_g), fat_c)
+        ind = dp(14)
+        if n.fat_saturated_g is not None:
+            self._nf_row("Saturated", self._fmt_g(n.fat_saturated_g), white, indent=ind)
+        if n.fat_trans_g is not None:
+            self._nf_row("Trans", self._fmt_g(n.fat_trans_g), white, indent=ind)
+        if n.fat_polyunsaturated_g is not None:
+            self._nf_row("Polyunsaturated", self._fmt_g(n.fat_polyunsaturated_g), white, indent=ind)
+        if n.fat_monounsaturated_g is not None:
+            self._nf_row("Monounsaturated", self._fmt_g(n.fat_monounsaturated_g), white, indent=ind)
+        self._nf_divider()
+        self._nf_row("Carbohydrate (g)", self._fmt_g(n.carbs_g), carb_c)
+        fiber_val = 0.0 if n.fiber_g is None else n.fiber_g
+        sugar_val = 0.0 if n.sugar_g is None else n.sugar_g
+        self._nf_row("Dietary fiber", self._fmt_g(fiber_val), white, indent=ind)
+        self._nf_row("Sugars", self._fmt_g(sugar_val), white, indent=ind)
+        self._nf_divider()
+        self._nf_row("Protein (g)", self._fmt_g(n.protein_g), prot_c)
+        self._nf_divider()
+        if n.sodium_mg is not None:
+            # UK-style salt from sodium: salt (g) ≈ sodium (mg) × 2.5 / 1000
+            salt_g = (n.sodium_mg / 1000.0) * 2.5
+            self._nf_row("Salt", self._fmt_g(salt_g), salt_c)
 
     def _confirm_add(self) -> None:
         qty = self._parse_qty()
-        raw = ""
-        if self._name_field is not None:
-            raw = (self._name_field.text or "").strip()
-        display_name = raw if raw else self._canonical_name
         self.dismiss()
-        self._on_add(qty, display_name)
+        self._on_add(qty, self._canonical_name)

@@ -65,11 +65,28 @@ def _product_dict_to_food(product: Dict[str, Any]) -> Food | None:
         return None
     raw_nut = product.get("nutriments")
     nutriments: Dict[str, Any] = raw_nut if isinstance(raw_nut, dict) else {}
+    sat = _float_nutriment(nutriments, "saturated-fat_100g")
+    trans = _float_nutriment(nutriments, "trans-fat_100g")
+    poly = _float_nutriment(nutriments, "polyunsaturated-fat_100g")
+    mono = _float_nutriment(nutriments, "monounsaturated-fat_100g")
+    fiber = _float_nutriment(nutriments, "fiber_100g")
+    sugars = _float_nutriment(nutriments, "sugars_100g")
+    # Sodium: OFF uses grams per 100 g; store as mg for NutritionInfo.
+    na_g = _float_nutriment(nutriments, "sodium_100g")
+    sodium_mg: Optional[float] = na_g * 1000.0 if na_g > 0 else None
+
     nutrition = NutritionInfo(
         calories=_float_nutriment(nutriments, "energy-kcal_100g"),
         protein_g=_float_nutriment(nutriments, "proteins_100g"),
         carbs_g=_float_nutriment(nutriments, "carbohydrates_100g"),
         fat_g=_float_nutriment(nutriments, "fat_100g"),
+        fiber_g=fiber if fiber > 0 else None,
+        sugar_g=sugars if sugars > 0 else None,
+        sodium_mg=sodium_mg,
+        fat_saturated_g=sat if sat > 0 else None,
+        fat_trans_g=trans if trans > 0 else None,
+        fat_polyunsaturated_g=poly if poly > 0 else None,
+        fat_monounsaturated_g=mono if mono > 0 else None,
     )
     code = product.get("code") or product.get("barcode")
     brands = product.get("brands") or ""
@@ -94,6 +111,13 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
     """
     calories = protein_g = carbs_g = fat_g = 0.0
     have_calories = False
+    fiber_g: Optional[float] = None
+    sugar_g: Optional[float] = None
+    sodium_mg: Optional[float] = None
+    fat_saturated_g: Optional[float] = None
+    fat_trans_g: Optional[float] = None
+    fat_polyunsaturated_g: Optional[float] = None
+    fat_monounsaturated_g: Optional[float] = None
     if not isinstance(food_nutrients, list):
         return NutritionInfo(
             calories=0.0,
@@ -130,11 +154,32 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
             carbs_g = val
         elif nname == _USDA_NUTRIENT_FAT_NAME:
             fat_g = val
+        elif nname == "Fiber, total dietary":
+            fiber_g = val
+        elif nname in ("Sugars, Total", "Total Sugars"):
+            sugar_g = val
+        elif nname == "Sodium, Na":
+            sodium_mg = val
+        elif nname == "Fatty acids, total saturated":
+            fat_saturated_g = val
+        elif nname == "Fatty acids, total trans":
+            fat_trans_g = val
+        elif nname == "Fatty acids, total polyunsaturated":
+            fat_polyunsaturated_g = val
+        elif nname == "Fatty acids, total monounsaturated":
+            fat_monounsaturated_g = val
     return NutritionInfo(
         calories=calories,
         protein_g=protein_g,
         carbs_g=carbs_g,
         fat_g=fat_g,
+        fiber_g=fiber_g,
+        sugar_g=sugar_g,
+        sodium_mg=sodium_mg,
+        fat_saturated_g=fat_saturated_g,
+        fat_trans_g=fat_trans_g,
+        fat_polyunsaturated_g=fat_polyunsaturated_g,
+        fat_monounsaturated_g=fat_monounsaturated_g,
     )
 
 

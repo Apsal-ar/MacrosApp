@@ -21,6 +21,10 @@ class NutritionInfo:
         fiber_g: Dietary fibre in grams per 100g (optional).
         sugar_g: Total sugars in grams per 100g (optional).
         sodium_mg: Sodium in milligrams per 100g (optional).
+        fat_saturated_g: Saturated fatty acids, grams per 100g (optional).
+        fat_trans_g: Trans fatty acids, grams per 100g (optional).
+        fat_polyunsaturated_g: Polyunsaturated fatty acids, grams per 100g (optional).
+        fat_monounsaturated_g: Monounsaturated fatty acids, grams per 100g (optional).
     """
 
     calories: float = 0.0
@@ -30,6 +34,10 @@ class NutritionInfo:
     fiber_g: Optional[float] = None
     sugar_g: Optional[float] = None
     sodium_mg: Optional[float] = None
+    fat_saturated_g: Optional[float] = None
+    fat_trans_g: Optional[float] = None
+    fat_polyunsaturated_g: Optional[float] = None
+    fat_monounsaturated_g: Optional[float] = None
 
     def scale(self, quantity_g: float) -> "NutritionInfo":
         """Return a new NutritionInfo scaled to quantity_g from the 100g base.
@@ -49,6 +57,16 @@ class NutritionInfo:
             fiber_g=self.fiber_g * factor if self.fiber_g is not None else None,
             sugar_g=self.sugar_g * factor if self.sugar_g is not None else None,
             sodium_mg=self.sodium_mg * factor if self.sodium_mg is not None else None,
+            fat_saturated_g=self.fat_saturated_g * factor
+            if self.fat_saturated_g is not None
+            else None,
+            fat_trans_g=self.fat_trans_g * factor if self.fat_trans_g is not None else None,
+            fat_polyunsaturated_g=self.fat_polyunsaturated_g * factor
+            if self.fat_polyunsaturated_g is not None
+            else None,
+            fat_monounsaturated_g=self.fat_monounsaturated_g * factor
+            if self.fat_monounsaturated_g is not None
+            else None,
         )
 
 
