@@ -260,7 +260,10 @@ class FoodSearchScreen(BaseScreen):
             self._show_empty_state_recipes(query)
             return
 
-        raw: List[Food] = self._food_service.search(query, self.profile_id)
+        if self.search_tab == 2:
+            raw = self._food_service.search_library_world_es(query)
+        else:
+            raw = self._food_service.search(query, self.profile_id)
         if self.search_tab == 0:
             results = [
                 f

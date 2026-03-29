@@ -6,6 +6,9 @@ Search strategy:
   3. Merge results, deduplicate by barcode.
   4. Cache any new OFF results locally for future offline use.
 
+Library search:
+  Text search via ``services.food_api`` against https://world.openfoodfacts.org/cgi/search.pl.
+
 Barcode lookup strategy:
   1. Check FoodRepository by barcode.
   2. If not found, query Open Food Facts by barcode.
@@ -21,6 +24,7 @@ from typing import List, Optional
 
 import config
 from models.food import Food, NutritionInfo
+from services import food_api
 from services.repository import FoodRepository
 
 logger = logging.getLogger(__name__)
@@ -68,6 +72,20 @@ class FoodService:
             seen_ids.add(food.id)
 
         return merged
+
+    def search_library_world_es(self, query: str) -> List[Food]:
+        """Search Open Food Facts by name (world facet) and cache hits locally.
+
+        Delegates to :func:`services.food_api.search_library`.
+
+        Args:
+            query: Free-text search (caller should enforce min length).
+
+        Returns:
+            Parsed foods, possibly empty on error or no hits.
+        """
+        off_results = food_api.search_library(query)
+        return [self._cache_off_food(f) for f in off_results]
 
     def lookup_barcode(self, barcode: str, profile_id: str) -> Optional[Food]:  # noqa: ARG002
         """Look up a food by its EAN-13/UPC-A barcode string.
@@ -203,7 +221,8 @@ class FoodService:
                 p = product.__dict__ if hasattr(product, "__dict__") else {}
 
             name = (
-                p.get("product_name_en")
+                p.get("product_name_es")
+                or p.get("product_name_en")
                 or p.get("product_name")
                 or ""
             ).strip()
