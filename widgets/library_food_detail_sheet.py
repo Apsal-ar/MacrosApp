@@ -9,26 +9,27 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.graphics import Color, Ellipse
 from kivy.lang import Builder
-from kivy.metrics import dp
+from kivy.metrics import dp, sp
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.modalview import ModalView
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDButtonText, MDIconButton
 from kivymd.uix.label import MDLabel
-from kivymd.uix.textfield import MDTextField
-
 from models.food import Food, NutritionInfo
 from utils.constants import (
     COLOR_CARBS,
     RGBA_BG,
     RGBA_CARBS,
     RGBA_FAT,
+    RGBA_LINE,
     RGBA_PRIMARY,
     RGBA_PROTEIN,
     RGBA_SURFACE,
+    UI_CORNER_RADIUS_DP,
     hex_to_rgba,
 )
 from widgets.macro_pie_chart import EXPLODE_DP, SEGMENT_GAP_DEG
@@ -223,7 +224,7 @@ class LibraryFoodDetailSheet(ModalView):
         self._name_row: Optional[MDBoxLayout] = None
         self._pie_box: Optional[MDBoxLayout] = None
         self._title_lbl: Optional[MDLabel] = None
-        self._qty_field: Optional[MDTextField] = None
+        self._qty_field: Optional[TextInput] = None
         self._lbl_cal: Optional[MDLabel] = None
         self._lbl_p: Optional[MDLabel] = None
         self._lbl_c: Optional[MDLabel] = None
@@ -369,38 +370,68 @@ class LibraryFoodDetailSheet(ModalView):
         summary_stack.bind(minimum_height=summary_stack.setter("height"))
         body.add_widget(summary_stack)
 
-        # Grams: narrow field (~30% width) + label, then Add directly below
+        # Grams: tight bordered box (TextInput avoids MD filled vertical padding); "g" outside
+        _qty_h = dp(38)
         qty_row = MDBoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=dp(56),
-            spacing=dp(12),
+            height=_qty_h,
+            spacing=dp(8),
             padding=[0, 0, 0, 0],
         )
-        self._qty_field = MDTextField(
-            hint_text="Amount",
-            text="100",
-            mode="filled",
-            input_filter="float",
-            size_hint_x=0.3,
+        r = dp(UI_CORNER_RADIUS_DP)
+        qty_box = MDBoxLayout(
+            orientation="horizontal",
+            padding=[dp(8), dp(2), dp(8), dp(2)],
+            size_hint_x=None,
+            width=dp(84),
             size_hint_y=None,
-            height=dp(56),
+            height=_qty_h,
+            md_bg_color=RGBA_BG,
+            theme_bg_color="Custom",
+            line_color=tuple(RGBA_LINE[:4]),
+            line_width=1,
+            radius=[r, r, r, r],
+        )
+        self._qty_field = TextInput(
+            text="100",
+            input_filter="float",
+            multiline=False,
+            write_tab=False,
+            halign="center",
+            size_hint_x=1,
+            size_hint_y=1,
+            background_color=(0, 0, 0, 0),
+            foreground_color=(0.92, 0.93, 0.95, 1),
+            cursor_color=(1, 1, 1, 1),
+            padding=[dp(6), 0, dp(6), 0],
+            font_size=sp(16),
         )
         self._qty_field.bind(text=self._on_qty_text)
-        qty_row.add_widget(self._qty_field)
-        qty_row.add_widget(
-            MDLabel(
-                text="grams",
-                font_style="Body",
-                role="medium",
-                theme_text_color="Custom",
-                text_color=(0.75, 0.78, 0.82, 1),
-                size_hint_x=None,
-                width=dp(72),
-                halign="left",
-                valign="center",
-            )
+        self._qty_field.bind(size=self._sync_qty_field_padding, font_size=self._sync_qty_field_padding)
+        Clock.schedule_once(self._sync_qty_field_padding, 0)
+        qty_box.add_widget(self._qty_field)
+        g_lbl = MDLabel(
+            text="g",
+            font_style="Body",
+            role="medium",
+            theme_text_color="Custom",
+            text_color=(0.75, 0.78, 0.82, 1),
+            size_hint_x=None,
+            width=dp(16),
+            size_hint_y=None,
+            height=_qty_h,
+            halign="left",
+            valign="middle",
         )
+
+        def _sync_g_text_size(*_a: object) -> None:
+            g_lbl.text_size = (g_lbl.width, g_lbl.height)
+
+        g_lbl.bind(width=_sync_g_text_size, height=_sync_g_text_size)
+        Clock.schedule_once(lambda _dt: _sync_g_text_size(), 0)
+        qty_row.add_widget(qty_box)
+        qty_row.add_widget(g_lbl)
         qty_row.add_widget(MDBoxLayout(size_hint_x=1))
         body.add_widget(qty_row)
 
@@ -532,7 +563,17 @@ class LibraryFoodDetailSheet(ModalView):
         col.add_widget(t)
         return col, val
 
-    def _on_qty_text(self, _instance: MDTextField, text: str) -> None:
+    def _sync_qty_field_padding(self, *_args: object) -> None:
+        """Equal top/bottom padding so the value is vertically centered in the box."""
+        ti = self._qty_field
+        if ti is None or ti.height <= 1:
+            return
+        lh = float(ti.line_height)
+        v = max(0.0, (float(ti.height) - lh) / 2.0)
+        h = float(dp(6))
+        ti.padding = [h, v, h, v]
+
+    def _on_qty_text(self, _instance: TextInput, text: str) -> None:
         self._refresh_values()
 
     def _parse_qty(self) -> float:

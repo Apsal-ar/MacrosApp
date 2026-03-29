@@ -115,8 +115,8 @@ _LABELS = ["Protein", "Carbs", "Fat"]
 
 # Angular gap between adjacent slices (degrees), plus slight radial "explode".
 # Shared with other macro pies (e.g. library food detail) — keep in sync.
-SEGMENT_GAP_DEG = 2.0
-EXPLODE_DP = 4.0
+SEGMENT_GAP_DEG = 1.5
+EXPLODE_DP = 2.0
 
 
 class MacroPieChart(MDBoxLayout):
