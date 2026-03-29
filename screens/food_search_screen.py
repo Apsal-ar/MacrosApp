@@ -18,16 +18,52 @@ from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDButtonText, MDIconButton
 from widgets.macros_button import MacrosFilledButton
-from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 from models.food import Food, NutritionInfo
 from screens.base_screen import BaseScreen
+from utils.constants import RGBA_INFO_PANEL_BG, UI_CORNER_RADIUS_DP
 from services.barcode_service import BarcodeService
 from services.food_service import FoodService
 import widgets.macros_button  # noqa: F401 — registers Macros*Button for food_search.kv
 Builder.load_file("assets/kv/food_search.kv")
 
 logger = logging.getLogger(__name__)
+
+
+def _info_notice_panel(text: str) -> MDBoxLayout:
+    """Info / warning panel: same radius as Macros* buttons (see goals.kv EditCalorieTargetSheet)."""
+    r = dp(UI_CORNER_RADIUS_DP)
+    box = MDBoxLayout(
+        orientation="vertical",
+        size_hint_x=1,
+        adaptive_height=True,
+        theme_bg_color="Custom",
+        md_bg_color=RGBA_INFO_PANEL_BG,
+        radius=[r, r, r, r],
+        padding=[dp(14), dp(14), dp(14), dp(14)],
+        spacing=0,
+    )
+    lbl = MDLabel(
+        text=text,
+        size_hint_x=1,
+        adaptive_height=True,
+        font_style="Body",
+        role="small",
+        theme_text_color="Custom",
+        text_color=(0.98, 0.99, 1.0, 1),
+        font_size="12sp",
+        halign="center",
+        valign="middle",
+    )
+
+    def _sync_text_size(*_a: object) -> None:
+        w = box.width if box.width else dp(320)
+        lbl.text_size = (max(dp(48), w), None)
+
+    box.bind(width=_sync_text_size)
+    Clock.schedule_once(_sync_text_size, 0)
+    box.add_widget(lbl)
+    return box
 
 
 class FoodSearchScreen(BaseScreen):
@@ -118,11 +154,18 @@ class FoodSearchScreen(BaseScreen):
             self._show_tab_placeholder()
 
     def _update_tab_styles(self) -> None:
+        """Tabs sit on teal header; labels stay white (dimmer when inactive)."""
         active = self.search_tab
         for i, bid in enumerate(("tab_b0", "tab_b1", "tab_b2")):
-            if bid in self.ids:
-                self.ids[bid].theme_text_color = (
-                    "Primary" if i == active else "Secondary"
+            if bid not in self.ids:
+                continue
+            txt = getattr(self.ids[bid], "_button_text", None)
+            if txt is not None:
+                txt.theme_text_color = "Custom"
+                txt.text_color = (
+                    (1.0, 1.0, 1.0, 1.0)
+                    if i == active
+                    else (1.0, 1.0, 1.0, 0.55)
                 )
 
     def on_search_text(self, text: str) -> None:
@@ -256,26 +299,7 @@ class FoodSearchScreen(BaseScreen):
         msg = (
             f'No foods found for the search: "{query}" in your foods.'
         )
-        card = MDCard(
-            orientation="vertical",
-            padding=[dp(16), dp(18), dp(16), dp(18)],
-            radius=[dp(12), dp(12), dp(12), dp(12)],
-            size_hint_y=None,
-            md_bg_color=(0.12, 0.18, 0.42, 1.0),
-        )
-        lbl = MDLabel(
-            text=msg,
-            theme_text_color="Custom",
-            text_color=(1, 1, 1, 1),
-            halign="center",
-            valign="middle",
-            size_hint_y=None,
-            size_hint_x=1,
-            text_size=(dp(300), None),
-        )
-        card.add_widget(lbl)
-
-        root.add_widget(card)
+        root.add_widget(_info_notice_panel(msg))
 
         btn = MacrosFilledButton(
             size_hint_y=None,
@@ -321,24 +345,7 @@ class FoodSearchScreen(BaseScreen):
         root.add_widget(icon)
 
         msg = f'No recipes found for the search: "{query}" in your recipes.'
-        card = MDCard(
-            orientation="vertical",
-            padding=[dp(16), dp(18), dp(16), dp(18)],
-            radius=[dp(12), dp(12), dp(12), dp(12)],
-            size_hint_y=None,
-            md_bg_color=(0.12, 0.18, 0.42, 1.0),
-        )
-        lbl = MDLabel(
-            text=msg,
-            theme_text_color="Custom",
-            text_color=(1, 1, 1, 1),
-            halign="center",
-            size_hint_y=None,
-            size_hint_x=1,
-            text_size=(dp(300), None),
-        )
-        card.add_widget(lbl)
-        root.add_widget(card)
+        root.add_widget(_info_notice_panel(msg))
         return root
 
     def search_in_library(self) -> None:

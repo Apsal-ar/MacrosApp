@@ -56,6 +56,20 @@ RGBA_CALORIE_INDICATOR: List[float] = rgba_with_alpha(
 COLOR_LINE: str = "#94A09F"
 RGBA_LINE: List[float] = hex_to_rgba(COLOR_LINE)
 
+# Corner radius for primary buttons (Macros*Button) and info / warning message panels.
+UI_CORNER_RADIUS_DP: int = 6
+
+# Macro editor validation banner (EditMacrosSheet)
+RGBA_VALIDATION_PANEL_BG: List[float] = [0.18, 0.38, 0.72, 1.0]
+
+# Info / explainer panels (Caloric requirement screen, Food search empty state)
+RGBA_INFO_PANEL_BG: List[float] = [
+    0.08627450980392157,
+    0.1411764705882353,
+    0.33725490196078434,
+    1.0,
+]
+
 # ---------------------------------------------------------------------------
 # Physical Activity Level multipliers
 # ---------------------------------------------------------------------------

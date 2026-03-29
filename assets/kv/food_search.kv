@@ -1,105 +1,124 @@
 #:import dp kivy.metrics.dp
+#:import RGBA_PRIMARY utils.constants.RGBA_PRIMARY
 
 <FoodSearchScreen>:
     MDBoxLayout:
         orientation: "vertical"
         md_bg_color: app.theme_cls.backgroundColor
 
-        # Header
+        # Unified header (#009688): title → search row → tabs
+        # Explicit height: a vertical MDBoxLayout with only size_hint_y: None and no height can collapse
+        # to ~tab height, hiding the title + search rows.
         MDBoxLayout:
+            orientation: "vertical"
             size_hint_y: None
-            height: "56dp"
-            md_bg_color: app.theme_cls.primaryColor
-            padding: ["4dp", "0dp", "8dp", "0dp"]
+            size_hint_x: 1
+            height: "156dp"
+            md_bg_color: RGBA_PRIMARY
 
-            MDIconButton:
-                icon: "arrow-left"
-                theme_text_color: "Custom"
-                text_color: 1, 1, 1, 1
-                on_release: root.go_back()
-
-            MDLabel:
-                text: "Search"
-                font_style: "Title"
-                role: "medium"
-                theme_text_color: "Custom"
-                text_color: 1, 1, 1, 1
-                halign: "center"
-                valign: "center"
-                size_hint_x: 1
-
-            MDIconButton:
-                icon: "plus"
-                theme_text_color: "Custom"
-                text_color: 1, 1, 1, 1
-                on_release: root.open_manual_form()
-
-        # Search bar (text + clear + barcode)
-        MDBoxLayout:
-            size_hint_y: None
-            height: "72dp"
-            padding: ["12dp", "8dp", "12dp", "8dp"]
-
+            # 1) Title "Search"
             MDBoxLayout:
-                orientation: "horizontal"
-                spacing: "4dp"
-                md_bg_color: app.theme_cls.surfaceContainerHighColor
-                radius: [dp(12), dp(12), dp(12), dp(12)]
+                size_hint_y: None
+                height: "56dp"
                 padding: ["4dp", "0dp", "8dp", "0dp"]
+
+                MDIconButton:
+                    icon: "arrow-left"
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    on_release: root.go_back()
+
+                MDLabel:
+                    text: "Search"
+                    font_style: "Title"
+                    role: "medium"
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    halign: "center"
+                    valign: "center"
+                    size_hint_x: 1
+
+                MDIconButton:
+                    icon: "plus"
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    on_release: root.open_manual_form()
+
+            # 2) Search — padding area is teal; inner surface is the only contrasting bar
+            MDBoxLayout:
                 size_hint_y: None
                 height: "52dp"
+                padding: ["12dp", "6dp", "12dp", "6dp"]
 
-                MDIconButton:
-                    icon: "magnify"
-                    theme_text_color: "Secondary"
+                MDBoxLayout:
+                    orientation: "horizontal"
+                    spacing: "4dp"
+                    md_bg_color: app.theme_cls.surfaceContainerHighColor
+                    radius: [dp(12), dp(12), dp(12), dp(12)]
+                    padding: ["2dp", "0dp", "6dp", "0dp"]
+                    size_hint_y: None
+                    height: "40dp"
 
-                MDTextField:
-                    id: search_field
-                    hint_text: "Search foods..."
-                    mode: "filled"
-                    size_hint_x: 1
-                    on_text: root.on_search_text(self.text)
+                    MDIconButton:
+                        icon: "magnify"
+                        theme_text_color: "Custom"
+                        text_color: app.theme_cls.primaryColor
+                        pos_hint: {"center_y": 0.5}
 
-                MDIconButton:
-                    id: clear_search_btn
-                    icon: "close"
-                    opacity: 0
-                    disabled: True
-                    on_release: root.clear_search()
+                    MDTextField:
+                        id: search_field
+                        hint_text: "Search foods..."
+                        mode: "outlined"
+                        size_hint_x: 1
+                        size_hint_y: None
+                        height: "40dp"
+                        on_text: root.on_search_text(self.text)
 
-                MDIconButton:
-                    icon: "barcode-scan"
-                    theme_text_color: "Primary"
-                    on_release: root.on_scan_pressed()
+                    MDIconButton:
+                        id: clear_search_btn
+                        icon: "close"
+                        opacity: 0
+                        disabled: True
+                        theme_text_color: "Custom"
+                        text_color: app.theme_cls.primaryColor
+                        pos_hint: {"center_y": 0.5}
+                        on_release: root.clear_search()
 
-        # Tabs
-        MDBoxLayout:
-            id: tab_row
-            size_hint_y: None
-            height: "52dp"
-            spacing: "4dp"
-            padding: ["8dp", "0dp", "8dp", "4dp"]
+                    MDIconButton:
+                        icon: "barcode-scan"
+                        theme_text_color: "Custom"
+                        text_color: app.theme_cls.primaryColor
+                        pos_hint: {"center_y": 0.5}
+                        on_release: root.on_scan_pressed()
 
-            MacrosTextButton:
-                id: tab_b0
-                on_release: root.set_tab(0)
+            # 3) Tabs
+            MDBoxLayout:
+                id: tab_row
+                size_hint_y: None
+                height: "48dp"
+                spacing: "4dp"
+                padding: ["8dp", "0dp", "8dp", "8dp"]
 
-                MDButtonText:
-                    text: "My foods"
+                MacrosTextButton:
+                    id: tab_b0
+                    on_release: root.set_tab(0)
 
-            MacrosTextButton:
-                id: tab_b1
-                on_release: root.set_tab(1)
+                    MDButtonText:
+                        text: "My foods"
 
-                MDButtonText:
-                    text: "My recipes"
+                MacrosTextButton:
+                    id: tab_b1
+                    on_release: root.set_tab(1)
 
-            MacrosTextButton:
-                id: tab_b2
-                on_release: root.set_tab(2)
+                    MDButtonText:
+                        text: "My recipes"
 
-                MDButtonText:
-                    text: "Library"
+                MacrosTextButton:
+                    id: tab_b2
+                    on_release: root.set_tab(2)
+
+                    MDButtonText:
+                        text: "Library"
 
         MDDivider:
             theme_divider_color: "Custom"

@@ -13,12 +13,13 @@ from kivymd.uix.button import MDButton
 
 Builder.load_string("""
 #:import dp kivy.metrics.dp
+#:import UI_CORNER_RADIUS_DP utils.constants.UI_CORNER_RADIUS_DP
 
 <MacrosFilledButton>:
     style: "filled"
     theme_width: "Custom"
     theme_height: "Custom"
-    radius: [dp(6), dp(6), dp(6), dp(6)]
+    radius: [dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP)]
     size_hint_y: None
     height: "48dp"
     size_hint_x: 1
@@ -27,7 +28,7 @@ Builder.load_string("""
     style: "outlined"
     theme_width: "Custom"
     theme_height: "Custom"
-    radius: [dp(6), dp(6), dp(6), dp(6)]
+    radius: [dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP)]
     size_hint_y: None
     height: "48dp"
     size_hint_x: 1
@@ -36,7 +37,7 @@ Builder.load_string("""
     style: "text"
     theme_width: "Custom"
     theme_height: "Custom"
-    radius: [dp(6), dp(6), dp(6), dp(6)]
+    radius: [dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP), dp(UI_CORNER_RADIUS_DP)]
     size_hint_y: None
     height: "48dp"
     size_hint_x: 1
