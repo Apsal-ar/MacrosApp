@@ -73,15 +73,28 @@ Builder.load_string("""
             hint_text: "Quantity (g)"
             input_filter: "float"
             text: "100"
-            size_hint_x: 1
+            size_hint_x: 0.38
 
-        MacrosFilledButton:
-            size_hint_x: None
-            width: "80dp"
-            on_release: root.on_confirm_quantity()
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "8dp"
+            size_hint_x: 0.62
 
-            MDButtonText:
-                text: "Add"
+            MacrosFilledButton:
+                size_hint_x: 0.6667
+                on_release: root.on_confirm_quantity()
+
+                MDButtonText:
+                    text: "Next"
+
+            MacrosTextButton:
+                size_hint_x: 0.3333
+                on_release: root.on_edit_quantity_row()
+
+                MDButtonText:
+                    text: "Edit"
+                    theme_text_color: "Custom"
+                    text_color: app.theme_cls.primaryColor
 
     MDBoxLayout:
         id: manual_form
@@ -218,6 +231,13 @@ class FoodSearchContent(MDBoxLayout):
             qty = 100.0
         self._on_food_confirmed(self._selected_food, qty)
 
+    def on_edit_quantity_row(self) -> None:
+        """Open manual entry; prefill from the selected food when available."""
+        if self._selected_food is not None:
+            self._show_manual_form(food=self._selected_food)
+        else:
+            self._show_manual_form(prefill_name="")
+
     # ------------------------------------------------------------------
     # Barcode scan
     # ------------------------------------------------------------------
@@ -239,11 +259,34 @@ class FoodSearchContent(MDBoxLayout):
     # Manual entry
     # ------------------------------------------------------------------
 
-    def _show_manual_form(self, prefill_name: str = "") -> None:
+    def _show_manual_form(
+        self,
+        prefill_name: str = "",
+        *,
+        food: Optional[Food] = None,
+    ) -> None:
         form = self.ids.manual_form
         form.height = "280dp"
         form.opacity = 1
-        self.ids.manual_name.text = prefill_name
+        if food is not None:
+            self.ids.manual_name.text = (food.name or "").strip()
+            n = food.nutrition
+            if n:
+                self.ids.manual_calories.text = f"{n.calories:.0f}"
+                self.ids.manual_protein.text = f"{n.protein_g:.1f}"
+                self.ids.manual_carbs.text = f"{n.carbs_g:.1f}"
+                self.ids.manual_fat.text = f"{n.fat_g:.1f}"
+            else:
+                self.ids.manual_calories.text = ""
+                self.ids.manual_protein.text = ""
+                self.ids.manual_carbs.text = ""
+                self.ids.manual_fat.text = ""
+        else:
+            self.ids.manual_name.text = prefill_name
+            self.ids.manual_calories.text = ""
+            self.ids.manual_protein.text = ""
+            self.ids.manual_carbs.text = ""
+            self.ids.manual_fat.text = ""
 
     def on_save_manual(self) -> None:
         """Validate and save the manually entered food, then select it."""

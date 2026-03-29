@@ -32,7 +32,7 @@ from utils.constants import (
     hex_to_rgba,
 )
 from widgets.macro_pie_chart import EXPLODE_DP, SEGMENT_GAP_DEG
-from widgets.macros_button import MacrosFilledButton
+from widgets.macros_button import MacrosFilledButton, MacrosTextButton
 import widgets.macros_button  # noqa: F401 — registers Macros*Button
 
 Builder.load_string("""
@@ -209,6 +209,7 @@ class LibraryFoodDetailSheet(ModalView):
         self,
         food: Food,
         on_add: Callable[[float, str], None],
+        on_edit: Optional[Callable[[], None]] = None,
         **kwargs: object,
     ) -> None:
         kwargs.setdefault("padding", [0, 0, 0, 0])
@@ -216,6 +217,7 @@ class LibraryFoodDetailSheet(ModalView):
         self._food = food
         self._canonical_name = (food.name or "").strip() or "Food"
         self._on_add = on_add
+        self._on_edit = on_edit
         self._base: Optional[NutritionInfo] = food.nutrition
         self._macro_chart = MacroCaloriePieChart()
         self._name_row: Optional[MDBoxLayout] = None
@@ -328,21 +330,32 @@ class LibraryFoodDetailSheet(ModalView):
         name_row.add_widget(pie_box)
 
         # Four macro columns (stacked with name_row below — no gap)
+        # Natural content height; equal vertical padding to the rules above/below.
+        _macro_row_pad_v = dp(8)
+        _macro_col_h = dp(50)  # matches _macro_column padding + value + name rows
         row4 = MDBoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=dp(70),
+            height=_macro_col_h,
             spacing=dp(6),
             padding=[0, 0, 0, 0],
         )
-        col_cal, self._lbl_cal = self._macro_column("calories", RGBA_PRIMARY)
-        col_p, self._lbl_p = self._macro_column("protein", RGBA_PROTEIN)
-        col_c, self._lbl_c = self._macro_column("carbs", RGBA_CARBS)
-        col_f, self._lbl_f = self._macro_column("fat", RGBA_FAT)
+        col_cal, self._lbl_cal = self._macro_column("calories", RGBA_PRIMARY, _macro_col_h)
+        col_p, self._lbl_p = self._macro_column("protein", RGBA_PROTEIN, _macro_col_h)
+        col_c, self._lbl_c = self._macro_column("carbs", RGBA_CARBS, _macro_col_h)
+        col_f, self._lbl_f = self._macro_column("fat", RGBA_FAT, _macro_col_h)
         row4.add_widget(col_cal)
         row4.add_widget(col_p)
         row4.add_widget(col_c)
         row4.add_widget(col_f)
+        macro_padded = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=_macro_col_h + 2 * _macro_row_pad_v,
+            spacing=0,
+            padding=[0, _macro_row_pad_v, 0, _macro_row_pad_v],
+        )
+        macro_padded.add_widget(row4)
 
         summary_stack = MDBoxLayout(
             orientation="vertical",
@@ -351,7 +364,7 @@ class LibraryFoodDetailSheet(ModalView):
         )
         summary_stack.add_widget(name_row)
         summary_stack.add_widget(_thin_hline())
-        summary_stack.add_widget(row4)
+        summary_stack.add_widget(macro_padded)
         summary_stack.add_widget(_thin_hline())
         summary_stack.bind(minimum_height=summary_stack.setter("height"))
         body.add_widget(summary_stack)
@@ -391,14 +404,46 @@ class LibraryFoodDetailSheet(ModalView):
         qty_row.add_widget(MDBoxLayout(size_hint_x=1))
         body.add_widget(qty_row)
 
-        add_btn = MacrosFilledButton(
-            size_hint_y=None,
-            height=dp(48),
-            size_hint_x=1,
-            on_release=lambda *_: self._confirm_add(),
-        )
-        add_btn.add_widget(MDButtonText(text="Add", halign="center"))
-        body.add_widget(add_btn)
+        if self._on_edit is not None:
+            action_row = MDBoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(48),
+                spacing=dp(8),
+            )
+            add_btn = MacrosFilledButton(
+                size_hint_x=0.6667,
+                size_hint_y=None,
+                height=dp(48),
+                on_release=lambda *_: self._confirm_add(),
+            )
+            add_btn.add_widget(MDButtonText(text="Add", halign="center"))
+            action_row.add_widget(add_btn)
+            edit_btn = MacrosTextButton(
+                size_hint_x=0.3333,
+                size_hint_y=None,
+                height=dp(48),
+                on_release=lambda *_: self._on_edit_pressed(),
+            )
+            edit_btn.add_widget(
+                MDButtonText(
+                    text="Edit",
+                    halign="center",
+                    theme_text_color="Custom",
+                    text_color=tuple(RGBA_PRIMARY[:4]),
+                )
+            )
+            action_row.add_widget(edit_btn)
+            body.add_widget(action_row)
+        else:
+            add_btn = MacrosFilledButton(
+                size_hint_y=None,
+                height=dp(48),
+                size_hint_x=1,
+                on_release=lambda *_: self._confirm_add(),
+            )
+            add_btn.add_widget(MDButtonText(text="Add", halign="center"))
+            body.add_widget(add_btn)
 
         facts_scroll = ScrollView(
             size_hint=(1, 1),
@@ -445,7 +490,7 @@ class LibraryFoodDetailSheet(ModalView):
             self._pie_box.size = (side, side)
 
     def _macro_column(
-        self, name_below: str, rgba: list[float]
+        self, name_below: str, rgba: list[float], col_height: float
     ) -> tuple[MDBoxLayout, MDLabel]:
         col = MDBoxLayout(
             orientation="vertical",
@@ -454,6 +499,8 @@ class LibraryFoodDetailSheet(ModalView):
             radius=[dp(8), dp(8), dp(8), dp(8)],
             padding=[dp(8), dp(2), dp(8), dp(2)],
             size_hint_x=1,
+            size_hint_y=None,
+            height=col_height,
         )
         tc = tuple(rgba[:4])
         val = MDLabel(
@@ -466,7 +513,7 @@ class LibraryFoodDetailSheet(ModalView):
             theme_text_color="Custom",
             text_color=tc,
             halign="center",
-            valign="bottom",
+            valign="middle",
             size_hint_y=None,
             height=dp(30),
         )
@@ -477,7 +524,7 @@ class LibraryFoodDetailSheet(ModalView):
             theme_text_color="Custom",
             text_color=tc,
             halign="center",
-            valign="top",
+            valign="middle",
             size_hint_y=None,
             height=dp(16),
         )
@@ -600,14 +647,14 @@ class LibraryFoodDetailSheet(ModalView):
         self._nf_divider()
         self._nf_row("Fat (g)", self._fmt_g(n.fat_g), fat_c)
         ind = dp(14)
-        if n.fat_saturated_g is not None:
-            self._nf_row("Saturated", self._fmt_g(n.fat_saturated_g), white, indent=ind)
-        if n.fat_trans_g is not None:
-            self._nf_row("Trans", self._fmt_g(n.fat_trans_g), white, indent=ind)
-        if n.fat_polyunsaturated_g is not None:
-            self._nf_row("Polyunsaturated", self._fmt_g(n.fat_polyunsaturated_g), white, indent=ind)
-        if n.fat_monounsaturated_g is not None:
-            self._nf_row("Monounsaturated", self._fmt_g(n.fat_monounsaturated_g), white, indent=ind)
+        sat_val = 0.0 if n.fat_saturated_g is None else n.fat_saturated_g
+        trans_val = 0.0 if n.fat_trans_g is None else n.fat_trans_g
+        poly_val = 0.0 if n.fat_polyunsaturated_g is None else n.fat_polyunsaturated_g
+        mono_val = 0.0 if n.fat_monounsaturated_g is None else n.fat_monounsaturated_g
+        self._nf_row("Saturated", self._fmt_g(sat_val), white, indent=ind)
+        self._nf_row("Trans", self._fmt_g(trans_val), white, indent=ind)
+        self._nf_row("Polyunsaturated", self._fmt_g(poly_val), white, indent=ind)
+        self._nf_row("Monounsaturated", self._fmt_g(mono_val), white, indent=ind)
         self._nf_divider()
         self._nf_row("Carbohydrate (g)", self._fmt_g(n.carbs_g), carb_c)
         fiber_val = 0.0 if n.fiber_g is None else n.fiber_g
@@ -621,6 +668,13 @@ class LibraryFoodDetailSheet(ModalView):
             # UK-style salt from sodium: salt (g) ≈ sodium (mg) × 2.5 / 1000
             salt_g = (n.sodium_mg / 1000.0) * 2.5
             self._nf_row("Salt", self._fmt_g(salt_g), salt_c)
+
+    def _on_edit_pressed(self) -> None:
+        if self._on_edit is None:
+            return
+        cb = self._on_edit
+        self.dismiss()
+        Clock.schedule_once(lambda _dt: cb(), 0.12)
 
     def _confirm_add(self) -> None:
         qty = self._parse_qty()

@@ -154,15 +154,28 @@
                 hint_text: "Quantity (g)"
                 input_filter: "float"
                 text: "100"
-                size_hint_x: 1
+                size_hint_x: 0.38
 
-            MacrosFilledButton:
-                size_hint_x: None
-                width: "88dp"
-                on_release: root.on_confirm_quantity()
+            MDBoxLayout:
+                orientation: "horizontal"
+                spacing: "8dp"
+                size_hint_x: 0.62
 
-                MDButtonText:
-                    text: "Add"
+                MacrosFilledButton:
+                    size_hint_x: 0.6667
+                    on_release: root.on_confirm_quantity()
+
+                    MDButtonText:
+                        text: "Next"
+
+                MacrosTextButton:
+                    size_hint_x: 0.3333
+                    on_release: root.on_edit_quantity_row()
+
+                    MDButtonText:
+                        text: "Edit"
+                        theme_text_color: "Custom"
+                        text_color: app.theme_cls.primaryColor
 
         MDBoxLayout:
             id: manual_form

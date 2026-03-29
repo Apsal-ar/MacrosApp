@@ -416,13 +416,19 @@ class FoodSearchScreen(BaseScreen):
             self._show_quantity_row()
 
     def _open_library_food_detail(self, food: Food) -> None:
-        """Library tab: full nutrition sheet with pie chart, grams, and Add."""
+        """Library tab: full nutrition sheet with pie chart, grams, Add + Edit."""
 
         def _on_add(qty_g: float, display_name: str) -> None:
             self._library_detail_sheet = None
             self._finish_add(food, qty_g, display_name)
 
-        self._library_detail_sheet = LibraryFoodDetailSheet(food=food, on_add=_on_add)
+        def _on_edit() -> None:
+            self._library_detail_sheet = None
+            self._show_manual_form(food=food)
+
+        self._library_detail_sheet = LibraryFoodDetailSheet(
+            food=food, on_add=_on_add, on_edit=_on_edit
+        )
         self._library_detail_sheet.open()
 
     def _show_quantity_row(self) -> None:
@@ -445,6 +451,13 @@ class FoodSearchScreen(BaseScreen):
         except ValueError:
             qty = 100.0
         self._finish_add(self._selected_food, qty)
+
+    def on_edit_quantity_row(self) -> None:
+        """Open manual entry; prefill from the selected search result when available."""
+        if self._selected_food is not None:
+            self._show_manual_form(food=self._selected_food)
+        else:
+            self.open_manual_form()
 
     def _finish_add(
         self, food: Food, qty: float, display_name: Optional[str] = None
@@ -544,12 +557,35 @@ class FoodSearchScreen(BaseScreen):
         form.height = "0dp"
         form.opacity = 0
 
-    def _show_manual_form(self, prefill_name: str = "") -> None:
+    def _show_manual_form(
+        self,
+        prefill_name: str = "",
+        *,
+        food: Optional[Food] = None,
+    ) -> None:
         self._hide_quantity_row()
         form = self.ids.manual_form
         form.height = "300dp"
         form.opacity = 1
-        self.ids.manual_name.text = prefill_name
+        if food is not None:
+            self.ids.manual_name.text = (food.name or "").strip()
+            n = food.nutrition
+            if n:
+                self.ids.manual_calories.text = f"{n.calories:.0f}"
+                self.ids.manual_protein.text = f"{n.protein_g:.1f}"
+                self.ids.manual_carbs.text = f"{n.carbs_g:.1f}"
+                self.ids.manual_fat.text = f"{n.fat_g:.1f}"
+            else:
+                self.ids.manual_calories.text = ""
+                self.ids.manual_protein.text = ""
+                self.ids.manual_carbs.text = ""
+                self.ids.manual_fat.text = ""
+        else:
+            self.ids.manual_name.text = prefill_name
+            self.ids.manual_calories.text = ""
+            self.ids.manual_protein.text = ""
+            self.ids.manual_carbs.text = ""
+            self.ids.manual_fat.text = ""
         self._ensure_list_attached()
         self.ids.results_list.clear_widgets()
 
