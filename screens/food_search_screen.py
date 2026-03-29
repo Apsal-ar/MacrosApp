@@ -10,18 +10,27 @@ from typing import List, Optional
 import config
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.metrics import dp
+from kivy.core.window import Window
+from kivy.metrics import dp, sp
 from kivy.properties import NumericProperty, StringProperty
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.modalview import ModalView
+from kivy.uix.widget import Widget
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDButtonText, MDIconButton
 from widgets.macros_button import MacrosFilledButton
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDIcon, MDLabel
 from models.food import Food, NutritionInfo
 from screens.base_screen import BaseScreen
-from utils.constants import RGBA_INFO_PANEL_BG, UI_CORNER_RADIUS_DP
+from utils.constants import (
+    EMPTY_STATE_ICON_FONT_MIN_SP,
+    EMPTY_STATE_ICON_FONT_SCALE,
+    EMPTY_STATE_ICON_ROW_HEIGHT_FACTOR,
+    RGBA_INFO_PANEL_BG,
+    UI_CORNER_RADIUS_DP,
+)
 from services.barcode_service import BarcodeService
 from services.food_service import FoodService
 import widgets.macros_button  # noqa: F401 — registers Macros*Button for food_search.kv
@@ -64,6 +73,49 @@ def _info_notice_panel(text: str) -> MDBoxLayout:
     Clock.schedule_once(_sync_text_size, 0)
     box.add_widget(lbl)
     return box
+
+
+def _empty_state_icon_row(icon_name: str) -> AnchorLayout:
+    """Decorative icon sized from ``Window`` (see ``EMPTY_STATE_ICON_*`` in constants).
+
+    Uses ``MDIcon`` + ``adaptive_size`` to avoid clipping (e.g. steam lines) from a fixed box.
+    """
+    wrap = AnchorLayout(
+        size_hint_x=1,
+        size_hint_y=None,
+        anchor_x="center",
+        anchor_y="center",
+    )
+    ic = MDIcon(
+        icon=icon_name,
+        theme_text_color="Custom",
+        text_color=(1.0, 0.48, 0.2, 1.0),
+        adaptive_size=True,
+    )
+    wrap.add_widget(ic)
+
+    def _apply_metrics(*_a: object) -> None:
+        m = min(Window.width, Window.height)
+        font_px = max(
+            sp(EMPTY_STATE_ICON_FONT_MIN_SP),
+            m * EMPTY_STATE_ICON_FONT_SCALE,
+        )
+        row_px = font_px * EMPTY_STATE_ICON_ROW_HEIGHT_FACTOR
+        ic.font_size = font_px
+        wrap.height = row_px
+
+    _apply_metrics()
+    Window.bind(width=_apply_metrics, height=_apply_metrics)
+
+    def _on_parent(_instance: AnchorLayout, parent: object) -> None:
+        if parent is None:
+            try:
+                Window.unbind(width=_apply_metrics, height=_apply_metrics)
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+    wrap.bind(parent=_on_parent)
+    return wrap
 
 
 class FoodSearchScreen(BaseScreen):
@@ -280,26 +332,23 @@ class FoodSearchScreen(BaseScreen):
     def _build_empty_state_my_foods(self, query: str) -> MDBoxLayout:
         root = MDBoxLayout(
             orientation="vertical",
-            spacing=dp(20),
-            padding=[dp(16), dp(32), dp(16), dp(24)],
+            spacing=0,
+            padding=[dp(16), dp(0), dp(16), dp(24)],
             size_hint_x=1,
             size_hint_y=None,
         )
         root.bind(minimum_height=root.setter("height"))
 
-        icon = MDIconButton(
-            icon="bowl-mix-outline",
-            theme_text_color="Custom",
-            text_color=(1.0, 0.48, 0.2, 1.0),
-            pos_hint={"center_x": 0.5},
-        )
-        icon.font_size = dp(40)
-        root.add_widget(icon)
+        _icon_pad_v = dp(16)
+        root.add_widget(Widget(size_hint_y=None, height=_icon_pad_v))
+        root.add_widget(_empty_state_icon_row("bowl-mix-outline"))
+        root.add_widget(Widget(size_hint_y=None, height=_icon_pad_v))
 
         msg = (
             f'No foods found for the search: "{query}" in your foods.'
         )
         root.add_widget(_info_notice_panel(msg))
+        root.add_widget(Widget(size_hint_y=None, height=dp(6)))
 
         btn = MacrosFilledButton(
             size_hint_y=None,
@@ -328,21 +377,17 @@ class FoodSearchScreen(BaseScreen):
     def _build_empty_state_recipes(self, query: str) -> MDBoxLayout:
         root = MDBoxLayout(
             orientation="vertical",
-            spacing=dp(20),
-            padding=[dp(16), dp(32), dp(16), dp(24)],
+            spacing=0,
+            padding=[dp(16), dp(0), dp(16), dp(24)],
             size_hint_x=1,
             size_hint_y=None,
         )
         root.bind(minimum_height=root.setter("height"))
 
-        icon = MDIconButton(
-            icon="chef-hat",
-            theme_text_color="Custom",
-            text_color=(1.0, 0.48, 0.2, 1.0),
-            pos_hint={"center_x": 0.5},
-        )
-        icon.font_size = dp(40)
-        root.add_widget(icon)
+        _icon_pad_v = dp(16)
+        root.add_widget(Widget(size_hint_y=None, height=_icon_pad_v))
+        root.add_widget(_empty_state_icon_row("chef-hat"))
+        root.add_widget(Widget(size_hint_y=None, height=_icon_pad_v))
 
         msg = f'No recipes found for the search: "{query}" in your recipes.'
         root.add_widget(_info_notice_panel(msg))

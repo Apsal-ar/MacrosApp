@@ -59,6 +59,11 @@ RGBA_LINE: List[float] = hex_to_rgba(COLOR_LINE)
 # Corner radius for primary buttons (Macros*Button) and info / warning message panels.
 UI_CORNER_RADIUS_DP: int = 6
 
+# Food search empty-state hero icon — scales with min(Window.width, Window.height), not fixed dp.
+EMPTY_STATE_ICON_FONT_SCALE: float = 0.14
+EMPTY_STATE_ICON_ROW_HEIGHT_FACTOR: float = 1.75
+EMPTY_STATE_ICON_FONT_MIN_SP: float = 48.0
+
 # Macro editor validation banner (EditMacrosSheet)
 RGBA_VALIDATION_PANEL_BG: List[float] = [0.18, 0.38, 0.72, 1.0]
 
