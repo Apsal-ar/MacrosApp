@@ -464,6 +464,7 @@ class CacheDB:
             self._conn.commit()
 
     def get_manual_foods_local(self, profile_id: str) -> List[Dict[str, Any]]:
+        """All foods owned by the profile (My Foods: manual, USDA, OFF copies, logged)."""
         out: List[Dict[str, Any]] = []
         with self._lock:
             if self._conn is None:
@@ -472,12 +473,36 @@ class CacheDB:
             for (payload,) in cur.fetchall():
                 try:
                     d = json.loads(payload)
-                    if d.get("source") == "manual" and d.get("created_by") == profile_id:
+                    if d.get("created_by") == profile_id:
                         out.append(d)
                 except (json.JSONDecodeError, TypeError):
                     continue
         out.sort(key=lambda x: (x.get("name") or "").lower())
         return out
+
+    def iter_food_ids_for_profile_meals(self, profile_id: str) -> List[str]:
+        """Distinct ``food_id`` values from meal logs for this profile."""
+        seen: set[str] = set()
+        ordered: List[str] = []
+        with self._lock:
+            if self._conn is None:
+                return ordered
+            cur = self._conn.execute(
+                """SELECT mi.payload FROM meal_items mi
+                   INNER JOIN meals m ON m.id = mi.meal_id
+                   WHERE m.profile_id=?""",
+                (profile_id,),
+            )
+            for (payload,) in cur.fetchall():
+                try:
+                    d = json.loads(payload)
+                    fid = d.get("food_id")
+                    if isinstance(fid, str) and fid and fid not in seen:
+                        seen.add(fid)
+                        ordered.append(fid)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+        return ordered
 
     def get_all_food_payloads(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []

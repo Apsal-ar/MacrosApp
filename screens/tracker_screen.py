@@ -10,7 +10,9 @@ Features:
 
 from __future__ import annotations
 
+import logging
 import time
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
@@ -19,8 +21,10 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 
 from screens.base_screen import BaseScreen
+from services.food_service import FoodService
 from services.macro_calculator import MacroCalculator
 from services.repository import (
+    FoodRepository,
     GoalsRepository,
     MealItemRepository,
     MealRepository,
@@ -38,6 +42,8 @@ from widgets.meal_card import MealCard
 
 Builder.load_file("assets/kv/tracker.kv")
 
+logger = logging.getLogger(__name__)
+
 
 class TrackerScreen(BaseScreen):
     """Main daily tracking screen.
@@ -52,6 +58,7 @@ class TrackerScreen(BaseScreen):
         self._current_date: date = date.today()
         self._meals: Dict[int, Meal] = {}          # meal_number → Meal
         self._meal_cards: Dict[str, MealCard] = {}  # meal_id → MealCard
+        self._food_service = FoodService()
         self._goals_calorie: float = 2000.0
         self._goals_protein: float = 150.0
         self._goals_carbs: float = 200.0
@@ -66,6 +73,19 @@ class TrackerScreen(BaseScreen):
         """Load today's data when the screen becomes active."""
         self._pending_load_retries = 0
         Clock.schedule_once(self._load_day, 0)
+
+    def _maybe_backfill_my_foods_ownership(self, user_id: str) -> None:
+        """One-time: foods logged before ownership backfill appear in My Foods."""
+        cache = Repository._cache
+        if cache is None:
+            return
+        if cache.get_meta("backfill_foods_ownership_v1"):
+            return
+        try:
+            self._food_service.backfill_logged_foods_ownership(user_id)
+        except Exception:  # pylint: disable=broad-except
+            return
+        cache.set_meta("backfill_foods_ownership_v1", "1")
 
     # ------------------------------------------------------------------
     # Date navigation
@@ -109,6 +129,7 @@ class TrackerScreen(BaseScreen):
         self._pending_load_retries = 0
 
         self._refresh_date_label()
+        self._maybe_backfill_my_foods_ownership(user_id)
         self._load_goals(user_id)
         self._load_meals(user_id)
 
@@ -240,6 +261,11 @@ class TrackerScreen(BaseScreen):
         item_repo: MealItemRepository = self.get_repo(MealItemRepository)
         item_repo.save(item)
 
+        uid = self.get_current_user_id()
+        if uid:
+            owned = replace(food, created_by=food.created_by or uid, updated_at=time.time())
+            self._food_service.save_food(owned)
+
         card = self._meal_cards.get(meal_id)
         if card:
             card.add_item(item)
@@ -251,14 +277,17 @@ class TrackerScreen(BaseScreen):
     # ------------------------------------------------------------------
 
     def _on_edit_item(self, card: MealCard, item_id: str) -> None:  # noqa: ARG002
-        """Open full-screen Nutrition sheet (same as library) to update serving size."""
+        """Open full-screen Nutrition sheet; UPDATE quantity or Edit food details."""
         item_repo: MealItemRepository = self.get_repo(MealItemRepository)
         item = item_repo.get(item_id)
         if item is None:
             self.show_error("Could not load this food entry.")
             return
 
-        food = Food(
+        food_repo: FoodRepository = self.get_repo(FoodRepository)
+        cached = food_repo.get(item.food_id)
+        uid = self.get_current_user_id() or ""
+        food = cached or Food(
             id=item.food_id,
             name=item.food_name or "Food",
             nutrition=item.nutrition_per_100g,
@@ -266,6 +295,8 @@ class TrackerScreen(BaseScreen):
             serving_size_g=100.0,
             updated_at=item.updated_at,
         )
+        if uid and not food.created_by:
+            food = replace(food, created_by=uid)
 
         def on_confirm(qty_g: float, _display_name: str) -> None:
             if qty_g <= 0 or qty_g > 100_000:
@@ -281,14 +312,34 @@ class TrackerScreen(BaseScreen):
                 meal_card.update_item(item)
             self._update_daily_totals()
 
+        def on_edit_food() -> None:
+            to_edit = food_repo.get(item.food_id) or food
+            if uid and not to_edit.created_by:
+                to_edit = replace(to_edit, created_by=uid)
+            self._open_food_edit_from_tracker(to_edit)
+
         sheet = LibraryFoodDetailSheet(
             food=food,
             on_add=on_confirm,
-            on_edit=None,
+            on_edit=on_edit_food,
             primary_button_text="UPDATE",
             initial_quantity_g=item.quantity_g,
         )
         sheet.open()
+
+    def _open_food_edit_from_tracker(self, food: Food) -> None:
+        """Full-screen food editor; back returns to Tracker."""
+        try:
+            app = MDApp.get_running_app()
+            shell = app.root.get_screen("app")
+            sm = shell.ids.inner_sm
+            edit = sm.get_screen("food_edit")
+            edit.set_return_screen("tracker")
+            edit.bind_food(food, on_barcode_scan=None)
+            sm.current = "food_edit"
+        except Exception as exc:  # pylint: disable=broad-except
+            self.show_error("Could not open food editor.")
+            logger.warning("food edit from tracker: %s", exc)
 
     # ------------------------------------------------------------------
     # Delete item

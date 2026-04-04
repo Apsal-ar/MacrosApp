@@ -58,6 +58,8 @@ RGBA_LINE: List[float] = hex_to_rgba(COLOR_LINE)
 
 # Corner radius for primary buttons (Macros*Button) and info / warning message panels.
 UI_CORNER_RADIUS_DP: int = 6
+# Elevated cards / grouped sections (meal cards, food search surfaces, edit screen blocks).
+UI_CARD_RADIUS_DP: int = 12
 
 # Food search empty-state hero icon — scales with min(Window.width, Window.height), not fixed dp.
 EMPTY_STATE_ICON_FONT_SCALE: float = 0.14

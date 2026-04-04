@@ -11,6 +11,7 @@ import json
 import logging
 import time
 import uuid
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
@@ -272,13 +273,65 @@ class FoodRepository(Repository):
         foods.sort(key=lambda x: (x.name or "").lower())
         return foods[:limit]
 
+    def list_logged_foods_for_profile(
+        self, profile_id: str, query: str = "", limit: int = 200
+    ) -> List[Food]:
+        """Foods this profile has added to any meal log, from the local ``foods`` cache.
+
+        Distinct ``food_id`` values come from ``meal_items`` joined to ``meals`` (same
+        relationship as the Supabase ``foods`` / ``meal_items`` model). Only rows still
+        present in the local ``foods`` table are returned (payload mirrors remote).
+        """
+        cache = Repository._cache
+        if cache is None or not profile_id:
+            return []
+        foods: List[Food] = []
+        for fid in cache.iter_food_ids_for_profile_meals(profile_id):
+            row = cache.get_food(fid)
+            if row is None:
+                continue
+            try:
+                foods.append(self._row_to_food(row))
+            except Exception:  # pylint: disable=broad-except
+                continue
+        foods.sort(key=lambda x: (x.name or "").lower())
+        q = (query or "").strip().lower()
+        if len(q) < 2:
+            return foods[:limit]
+        filtered = [
+            f
+            for f in foods
+            if q in (f.name or "").lower() or q in (f.brand or "").lower()
+        ]
+        return filtered[:limit]
+
     def get_manual_foods(self, profile_id: str) -> List[Food]:
-        """Return all user-created manual foods from the cache."""
+        """Return all foods owned by the user (My Foods: any source with ``created_by``)."""
         cache = Repository._cache
         if cache is None:
             return []
         rows = cache.get_manual_foods_local(profile_id)
         return [self._row_to_food(r) for r in rows]
+
+    def backfill_logged_foods_ownership(self, profile_id: str) -> None:
+        """Set ``created_by`` on foods referenced by meal logs so they appear in My Foods."""
+        cache = Repository._cache
+        if cache is None:
+            return
+        for fid in cache.iter_food_ids_for_profile_meals(profile_id):
+            row = cache.get_food(fid)
+            if row is None:
+                continue
+            f = self._row_to_food(row)
+            if f.created_by == profile_id:
+                continue
+            self.save(
+                replace(
+                    f,
+                    created_by=profile_id,
+                    updated_at=time.time(),
+                )
+            )
 
     def save(self, food: Food) -> None:
         """Upsert food in cache, enqueue sync."""

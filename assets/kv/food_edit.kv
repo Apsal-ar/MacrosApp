@@ -1,16 +1,18 @@
 #:import dp kivy.metrics.dp
+#:import RGBA_BG utils.constants.RGBA_BG
 #:import RGBA_PRIMARY utils.constants.RGBA_PRIMARY
 
 <FoodEditScreen>:
     MDBoxLayout:
         orientation: "vertical"
-        md_bg_color: app.theme_cls.backgroundColor
+        md_bg_color: RGBA_BG
 
         MDBoxLayout:
             size_hint_y: None
             height: "56dp"
             md_bg_color: RGBA_PRIMARY
-            padding: ["4dp", "0dp", "8dp", "0dp"]
+            padding: ["4dp", "0dp", "4dp", "0dp"]
+            spacing: 0
 
             MDIconButton:
                 icon: "arrow-left"
@@ -28,11 +30,22 @@
                 valign: "center"
                 size_hint_x: 1
 
-            MDIconButton:
-                icon: "content-save"
-                theme_text_color: "Custom"
-                text_color: 1, 1, 1, 1
-                on_release: root.save_food()
+            MDBoxLayout:
+                size_hint_x: None
+                width: self.minimum_width
+                spacing: 0
+
+                MDIconButton:
+                    icon: "barcode-scan"
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    on_release: root._on_barcode_icon()
+
+                MDIconButton:
+                    icon: "content-save"
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    on_release: root.save_food()
 
         ScrollView:
             size_hint_y: 1

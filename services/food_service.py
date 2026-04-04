@@ -169,15 +169,16 @@ class FoodService:
         self._repo.delete(food_id)
 
     def get_manual_foods(self, profile_id: str) -> List[Food]:
-        """Return all user-created foods for display in the Settings screen.
-
-        Args:
-            profile_id: UUID of the owning profile.
-
-        Returns:
-            List of Food dataclasses with source='manual'.
-        """
+        """Return all foods owned by the user (My Foods tab / Settings)."""
         return self._repo.get_manual_foods(profile_id)
+
+    def backfill_logged_foods_ownership(self, profile_id: str) -> None:
+        """Attach ``created_by`` to foods that appear in meal history (one-time migration)."""
+        self._repo.backfill_logged_foods_ownership(profile_id)
+
+    def list_my_foods_tab(self, query: str, profile_id: str, limit: int = 200) -> List[Food]:
+        """Foods this user has logged before (any meal), for the My foods tab."""
+        return self._repo.list_logged_foods_for_profile(profile_id, query=query, limit=limit)
 
     # ------------------------------------------------------------------
     # Open Food Facts helpers

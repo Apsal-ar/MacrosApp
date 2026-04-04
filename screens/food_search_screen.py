@@ -189,6 +189,7 @@ class FoodSearchScreen(BaseScreen):
         self._hide_manual_form()
         self._update_clear_button("")
         self._update_tab_styles()
+        Clock.schedule_once(lambda _dt: self._run_search(""), 0)
 
     def go_back(self) -> None:
         """Return to Tracker without adding."""
@@ -214,6 +215,7 @@ class FoodSearchScreen(BaseScreen):
             shell = app.root.get_screen("app")
             sm = shell.ids.inner_sm
             edit = sm.get_screen("food_edit")
+            edit.set_return_screen("food_search")
             edit.bind_food(food, on_barcode_scan=self._scan_barcode_for_edit_screen)
             self._skip_reset_once = True
             sm.current = "food_edit"
@@ -237,7 +239,9 @@ class FoodSearchScreen(BaseScreen):
         self.search_tab = int(index)
         self._update_tab_styles()
         text = self.ids.search_field.text.strip() if "search_field" in self.ids else ""
-        if len(text) >= 2:
+        if self.search_tab == 0:
+            self._run_search(text)
+        elif len(text) >= 2:
             self._run_search(text)
         else:
             self._show_tab_placeholder()
@@ -261,6 +265,11 @@ class FoodSearchScreen(BaseScreen):
         self._update_clear_button(text)
         if self._search_event:
             self._search_event.cancel()
+        if self.search_tab == 0:
+            self._search_event = Clock.schedule_once(
+                lambda dt: self._run_search(text.strip()), 0.35
+            )
+            return
         if len(text.strip()) < 2:
             self._ensure_list_attached()
             self.ids.results_list.clear_widgets()
@@ -297,18 +306,12 @@ class FoodSearchScreen(BaseScreen):
             self._show_empty_state_recipes(query)
             return
 
-        if self.search_tab == 2:
-            raw = self._food_service.search_library_world_es(query)
-        else:
-            raw = self._food_service.search(query, self.profile_id)
         if self.search_tab == 0:
-            results = [
-                f
-                for f in raw
-                if f.created_by and f.created_by == self.profile_id
-            ]
+            results = self._food_service.list_my_foods_tab(query, self.profile_id)
+        elif self.search_tab == 2:
+            results = self._food_service.search_library_world_es(query)
         else:
-            results = raw
+            results = self._food_service.search(query, self.profile_id)
 
         if not results:
             if self.search_tab == 0:
@@ -335,7 +338,7 @@ class FoodSearchScreen(BaseScreen):
             MDListItemSupportingText,
         )
 
-        for food in results[:40]:
+        for food in results:
             n = food.nutrition
             cal = n.calories if n else 0.0
             pg = n.protein_g if n else 0.0
@@ -384,9 +387,13 @@ class FoodSearchScreen(BaseScreen):
         root.add_widget(_empty_state_icon_row("bowl-mix-outline"))
         root.add_widget(Widget(size_hint_y=None, height=_icon_pad_v))
 
-        msg = (
-            f'No foods found for the search: "{query}" in your foods.'
-        )
+        if not (query or "").strip():
+            msg = (
+                "No foods saved yet. Search the Library or scan a barcode, "
+                "then add foods to your log—they will appear here for next time."
+            )
+        else:
+            msg = f'No foods found for the search: "{query}" in your foods.'
         root.add_widget(_info_notice_panel(msg))
         root.add_widget(Widget(size_hint_y=None, height=dp(6)))
 
@@ -396,9 +403,14 @@ class FoodSearchScreen(BaseScreen):
             size_hint_x=1,
             on_release=lambda *_: self.search_in_library(),
         )
+        cta = (
+            "Browse the food library"
+            if not (query or "").strip()
+            else f'Search "{query}" in the library'
+        )
         btn.add_widget(
             MDButtonText(
-                text=f'Search "{query}" in the library',
+                text=cta,
                 halign="center",
             )
         )
