@@ -10,22 +10,13 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
-from kivy.uix.behaviors import ButtonBehavior
-from kivy.uix.widget import Widget
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButtonText, MDIconButton
-from kivymd.uix.dialog import (
-    MDDialog,
-    MDDialogButtonContainer,
-    MDDialogContentContainer,
-    MDDialogHeadlineText,
-)
-from kivymd.uix.label import MDIcon, MDLabel
+from kivymd.uix.button import MDIconButton
+from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 
-import widgets.macros_button  # noqa: F401 — MacrosFilledButton KV
-from widgets.macros_button import MacrosFilledButton
+import widgets.macros_button  # noqa: F401 — KV registration side-effect
 from models.food import Food, NutritionInfo
 from screens.base_screen import BaseScreen
 from services.food_service import FoodService
@@ -33,7 +24,6 @@ from utils.constants import (
     RGBA_CARBS,
     RGBA_FAT,
     RGBA_LINE,
-    RGBA_POPUP,
     RGBA_PRIMARY,
     RGBA_PROTEIN,
     RGBA_SURFACE,
@@ -52,9 +42,14 @@ def card_font() -> float:
 
 
 def _nut_val_w() -> float:
-    """Responsive width for the numeric value text field."""
+    """Responsive width for the numeric value text field.
+
+    Minimum dp(68) — just wide enough for 'Optional' (8 chars @ ~13 sp)
+    plus dp(4) inner padding.  Keeping this narrow ensures the right-aligned
+    number sits tight against the unit label with no dead space.
+    """
     w = float(Window.width) if Window.width else dp(360)
-    return max(dp(80), min(w * 0.24, dp(130)))
+    return max(dp(68), min(w * 0.19, dp(90)))
 
 
 def _nut_unit_w() -> float:
@@ -62,13 +57,6 @@ def _nut_unit_w() -> float:
     w = float(Window.width) if Window.width else dp(360)
     return max(dp(34), min(w * 0.095, dp(46)))
 
-
-def _format_serving_g(grams: float) -> str:
-    """Single string so the value and ``g`` stay visually tight (no wide gap)."""
-    g = float(grams)
-    if abs(g - round(g)) < 1e-6:
-        return f"{int(round(g))}g"
-    return f"{g:.1f}g"
 
 
 def _style_mdtf(
@@ -87,6 +75,8 @@ def _style_mdtf(
     empty and disappears the moment the user types, with no floating-label animation.
     """
 
+    _teal = list(RGBA_PRIMARY[:3]) + [1.0]
+
     def _apply(*_a: object) -> None:
         try:
             inner = tf.ids.get("text_field")
@@ -98,73 +88,26 @@ def _style_mdtf(
             if right_align:
                 inner.halign = "right"
                 if compact:
-                    inner.padding = [dp(2), dp(0), dp(4), dp(0)]
+                    # Row has no vertical padding; MDTextField fills the full
+                    # dp(40) row height.  (40 - ~16 sp text) / 2 ≈ dp(12) centers
+                    # the text to match the unit MDLabel's valign="middle".
+                    inner.padding = [dp(2), dp(12), dp(2), dp(12)]
                 else:
                     inner.padding = [dp(5), dp(5), dp(6), dp(5)]
             inner.foreground_color = fg
+            inner.cursor_color = _teal
+            inner.cursor_width = dp(2)
+            inner.selection_color = list(RGBA_PRIMARY[:3]) + [0.25]
             if opt_placeholder:
                 inner.hint_text = "Optional"
                 inner.hint_text_color = list(_HINT)
+            # KivyMD resets cursor_color internally on focus — reapply every time.
+            inner.bind(focus=lambda inst, val: setattr(inst, "cursor_color", _teal))
         except Exception:  # pylint: disable=broad-except
             pass
 
     Clock.schedule_once(_apply, 0)
 
-
-class _ServingSizesRow(ButtonBehavior, MDBoxLayout):
-    """Tappable row: label, grams, chevron → opens serving dialog."""
-
-    def __init__(self, value_g: float, on_open: Callable[[], None], **kwargs: object) -> None:
-        super().__init__(
-            orientation="horizontal",
-            size_hint_y=None,
-            height=dp(44),
-            padding=[dp(12), dp(4), dp(10), dp(4)],
-            spacing=dp(4),
-            **kwargs,
-        )
-        self._on_open = on_open
-        self.value_label = MDLabel(
-            text=_format_serving_g(value_g),
-            size_hint_x=1,
-            font_style="Body",
-            role="small",
-            font_size=card_font(),
-            theme_text_color="Custom",
-            text_color=_WHITE,
-            halign="right",
-            valign="middle",
-        )
-        self.add_widget(
-            MDLabel(
-                text="Serving sizes",
-                size_hint_x=None,
-                width=dp(132),
-                font_style="Body",
-                role="small",
-                font_size=card_font(),
-                theme_text_color="Custom",
-                text_color=_WHITE,
-                halign="left",
-                valign="middle",
-            )
-        )
-        self.add_widget(self.value_label)
-        self.add_widget(
-            MDIcon(
-                icon="chevron-right",
-                theme_text_color="Custom",
-                text_color=tuple(RGBA_LINE[:4]),
-                size_hint_x=None,
-                width=dp(22),
-            )
-        )
-
-    def set_value_g(self, grams: float) -> None:
-        self.value_label.text = _format_serving_g(grams)
-
-    def on_release(self) -> None:
-        self._on_open()
 
 
 def _thin_rule() -> MDBoxLayout:
@@ -189,8 +132,6 @@ class FoodEditScreen(BaseScreen):
         self._field_refs: dict[str, MDTextField] = {}
         self._barcode_scan_cb: Optional[Callable[[], None]] = None
         self._return_screen: str = "food_search"
-        self._serving_size_g: float = 100.0
-        self._serving_row: Optional[_ServingSizesRow] = None
 
     def set_return_screen(self, name: str) -> None:
         """Where ``go_back`` navigates (e.g. ``food_search`` or ``tracker``)."""
@@ -205,7 +146,6 @@ class FoodEditScreen(BaseScreen):
         """Load a copy of ``food`` for editing."""
         self._barcode_scan_cb = on_barcode_scan
         self._draft = self._clone_food(food)
-        self._serving_size_g = float(self._draft.serving_size_g or 100.0)
         Clock.schedule_once(lambda _dt: self._rebuild_ui(), 0)
 
     def _clone_food(self, food: Food) -> Food:
@@ -257,66 +197,6 @@ class FoodEditScreen(BaseScreen):
         if self._barcode_scan_cb:
             self._barcode_scan_cb()
 
-    def _open_serving_size_dialog(self) -> None:
-        dlg_ref: list[MDDialog] = []
-
-        tf = MDTextField(
-            text=(
-                str(int(self._serving_size_g))
-                if abs(self._serving_size_g - round(self._serving_size_g)) < 1e-6
-                else f"{self._serving_size_g:.1f}"
-            ),
-            mode="filled",
-            size_hint_y=None,
-            height=dp(52),
-            input_filter="float",
-            theme_bg_color="Custom",
-            fill_color_normal=(*RGBA_SURFACE[:3], 1),
-            theme_line_color="Custom",
-            line_color_normal=(0, 0, 0, 0),
-        )
-        _style_mdtf(tf, _WHITE, right_align=False, opt_placeholder=True)
-
-        def apply_ok(*_a: object) -> None:
-            try:
-                raw = (tf.text or "").strip()
-                v = float(raw) if raw else 100.0
-                v = max(1.0, v)
-                self._serving_size_g = v
-                if self._serving_row is not None:
-                    self._serving_row.set_value_g(v)
-                dlg_ref[0].dismiss()
-            except ValueError:
-                self.show_error("Enter a valid number of grams.")
-
-        def cancel(*_a: object) -> None:
-            dlg_ref[0].dismiss()
-
-        dlg = MDDialog(
-            MDDialogHeadlineText(text="Serving sizes"),
-            MDDialogContentContainer(
-                tf,
-                orientation="vertical",
-                padding=[dp(8), dp(12), dp(8), dp(8)],
-            ),
-            MDDialogButtonContainer(
-                Widget(),
-                MacrosFilledButton(
-                    MDButtonText(text="Cancel"),
-                    on_release=cancel,
-                ),
-                MacrosFilledButton(
-                    MDButtonText(text="OK"),
-                    on_release=apply_ok,
-                ),
-                spacing="8dp",
-            ),
-            theme_bg_color="Custom",
-            md_bg_color=RGBA_POPUP,
-        )
-        dlg_ref.append(dlg)
-        dlg.open()
-
     def save_food(self) -> None:
         if self._draft is None:
             return
@@ -330,7 +210,11 @@ class FoodEditScreen(BaseScreen):
             return
         brand_t = (self._field_refs.get("brand") and self._field_refs["brand"].text or "").strip()
         bc = (self._field_refs.get("barcode") and self._field_refs["barcode"].text or "").strip()
-        serving = max(1.0, float(self._serving_size_g))
+        try:
+            raw_s = (self._field_refs.get("serving") and self._field_refs["serving"].text or "").strip()
+            serving = max(1.0, float(raw_s) if raw_s else 100.0)
+        except ValueError:
+            serving = 100.0
 
         try:
             n = self._read_nutrition_from_fields()
@@ -402,13 +286,11 @@ class FoodEditScreen(BaseScreen):
         si = self.ids.scroll_inner
         si.clear_widgets()
         self._field_refs.clear()
-        self._serving_row = None
         if self._draft is None:
             return
 
         f = self._draft
         n = f.nutrition or NutritionInfo()
-        self._serving_size_g = float(f.serving_size_g or 100.0)
         r = dp(UI_CARD_RADIUS_DP)
 
         def surface_card() -> MDBoxLayout:
@@ -436,11 +318,13 @@ class FoodEditScreen(BaseScreen):
         self._add_barcode_row(info, f.barcode or "")
         info.add_widget(_thin_rule())
 
-        self._serving_row = _ServingSizesRow(
-            self._serving_size_g,
-            self._open_serving_size_dialog,
+        serving_val = f.serving_size_g or 100.0
+        serving_txt = (
+            str(int(round(serving_val)))
+            if abs(serving_val - round(serving_val)) < 1e-6
+            else f"{serving_val:.1f}"
         )
-        info.add_widget(self._serving_row)
+        self._add_metadata_text_row(info, "Serving size (g)", "serving", serving_txt)
         info.bind(minimum_height=info.setter("height"))
 
         si.add_widget(info)
@@ -500,7 +384,6 @@ class FoodEditScreen(BaseScreen):
                 key,
                 val,
                 _WHITE,
-                indent=dp(14),
                 unit_suffix=" g",
                 optional=True,
             )
@@ -520,7 +403,6 @@ class FoodEditScreen(BaseScreen):
             "fiber",
             n.fiber_g,
             _WHITE,
-            indent=dp(14),
             unit_suffix=" g",
             optional=True,
         )
@@ -531,7 +413,6 @@ class FoodEditScreen(BaseScreen):
             "sugar",
             n.sugar_g,
             _WHITE,
-            indent=dp(14),
             unit_suffix=" g",
             optional=True,
         )
@@ -592,8 +473,10 @@ class FoodEditScreen(BaseScreen):
             height=dp(40),
             theme_bg_color="Custom",
             fill_color_normal=(*RGBA_SURFACE[:3], 1),
+            fill_color_focus=(*RGBA_SURFACE[:3], 1),
             theme_line_color="Custom",
             line_color_normal=(0, 0, 0, 0),
+            line_color_focus=(0, 0, 0, 0),
         )
         self._field_refs[key] = tf
         _style_mdtf(tf, _WHITE, opt_placeholder=optional_field)
@@ -630,8 +513,10 @@ class FoodEditScreen(BaseScreen):
             height=dp(40),
             theme_bg_color="Custom",
             fill_color_normal=(*RGBA_SURFACE[:3], 1),
+            fill_color_focus=(*RGBA_SURFACE[:3], 1),
             theme_line_color="Custom",
             line_color_normal=(0, 0, 0, 0),
+            line_color_focus=(0, 0, 0, 0),
         )
         self._field_refs["barcode"] = t_bc
         _style_mdtf(t_bc, _WHITE, opt_placeholder=True)
@@ -664,8 +549,8 @@ class FoodEditScreen(BaseScreen):
             orientation="horizontal",
             size_hint_y=None,
             height=dp(40),
-            padding=[indent, dp(2), dp(10), dp(2)],
-            spacing=dp(2),
+            padding=[indent, 0, dp(6), 0],
+            spacing=dp(0),
         )
         row.add_widget(
             MDLabel(
@@ -718,11 +603,13 @@ class FoodEditScreen(BaseScreen):
             size_hint_x=None,
             width=val_w,
             size_hint_y=None,
-            height=dp(32),
+            height=dp(40),  # match row height so inner TextInput top = row top
             theme_bg_color="Custom",
             fill_color_normal=tuple(RGBA_SURFACE[:4]),
+            fill_color_focus=tuple(RGBA_SURFACE[:4]),
             theme_line_color="Custom",
             line_color_normal=(0, 0, 0, 0),
+            line_color_focus=(0, 0, 0, 0),
             input_filter="float",
         )
         self._field_refs[key] = tf
