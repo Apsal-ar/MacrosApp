@@ -679,7 +679,6 @@ class LibraryFoodDetailSheet(ModalView):
         fat_c = tuple(RGBA_FAT[:4])
         carb_c = tuple(RGBA_CARBS[:4])
         prot_c = tuple(RGBA_PROTEIN[:4])
-        salt_c = (0.72, 0.74, 0.78, 1.0)
         white = (1.0, 1.0, 1.0, 1.0)
 
         self._facts_box.add_widget(
@@ -717,11 +716,6 @@ class LibraryFoodDetailSheet(ModalView):
         self._nf_row("Sugars", self._fmt_g(sugar_val), white, indent=ind)
         self._nf_divider()
         self._nf_row("Protein (g)", self._fmt_g(n.protein_g), prot_c)
-        self._nf_divider()
-        if n.sodium_mg is not None:
-            # UK-style salt from sodium: salt (g) ≈ sodium (mg) × 2.5 / 1000
-            salt_g = (n.sodium_mg / 1000.0) * 2.5
-            self._nf_row("Salt", self._fmt_g(salt_g), salt_c)
 
     def _on_edit_pressed(self) -> None:
         if self._on_edit is None:

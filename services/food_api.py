@@ -71,10 +71,6 @@ def _product_dict_to_food(product: Dict[str, Any]) -> Food | None:
     mono = _float_nutriment(nutriments, "monounsaturated-fat_100g")
     fiber = _float_nutriment(nutriments, "fiber_100g")
     sugars = _float_nutriment(nutriments, "sugars_100g")
-    # Sodium: OFF uses grams per 100 g; store as mg for NutritionInfo.
-    na_g = _float_nutriment(nutriments, "sodium_100g")
-    sodium_mg: Optional[float] = na_g * 1000.0 if na_g > 0 else None
-
     nutrition = NutritionInfo(
         calories=_float_nutriment(nutriments, "energy-kcal_100g"),
         protein_g=_float_nutriment(nutriments, "proteins_100g"),
@@ -82,7 +78,6 @@ def _product_dict_to_food(product: Dict[str, Any]) -> Food | None:
         fat_g=_float_nutriment(nutriments, "fat_100g"),
         fiber_g=fiber if fiber > 0 else None,
         sugar_g=sugars if sugars > 0 else None,
-        sodium_mg=sodium_mg,
         fat_saturated_g=sat if sat > 0 else None,
         fat_trans_g=trans if trans > 0 else None,
         fat_polyunsaturated_g=poly if poly > 0 else None,
@@ -113,7 +108,6 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
     have_calories = False
     fiber_g: Optional[float] = None
     sugar_g: Optional[float] = None
-    sodium_mg: Optional[float] = None
     fat_saturated_g: Optional[float] = None
     fat_trans_g: Optional[float] = None
     fat_polyunsaturated_g: Optional[float] = None
@@ -158,8 +152,6 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
             fiber_g = val
         elif nname in ("Sugars, Total", "Total Sugars"):
             sugar_g = val
-        elif nname == "Sodium, Na":
-            sodium_mg = val
         elif nname == "Fatty acids, total saturated":
             fat_saturated_g = val
         elif nname == "Fatty acids, total trans":
@@ -175,7 +167,6 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
         fat_g=fat_g,
         fiber_g=fiber_g,
         sugar_g=sugar_g,
-        sodium_mg=sodium_mg,
         fat_saturated_g=fat_saturated_g,
         fat_trans_g=fat_trans_g,
         fat_polyunsaturated_g=fat_polyunsaturated_g,

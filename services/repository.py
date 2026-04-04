@@ -26,25 +26,8 @@ from sync.sync_manager import trigger_flush_async
 logger = logging.getLogger(__name__)
 
 
-def _salt_g_to_sodium_mg(salt_g: Optional[float]) -> Optional[float]:
-    """EU-style: salt (g per 100g) ↔ sodium (mg): sodium_mg = salt * 1000 / 2.5."""
-    if salt_g is None:
-        return None
-    return (float(salt_g) * 1000.0) / 2.5
-
-
-def _sodium_mg_to_salt_g(sodium_mg: Optional[float]) -> Optional[float]:
-    """salt (g) = sodium (mg) * 2.5 / 1000."""
-    if sodium_mg is None:
-        return None
-    return (float(sodium_mg) / 1000.0) * 2.5
-
-
 def _food_payload_to_join(fd: Dict[str, Any]) -> Dict[str, Any]:
     """Shape stored meal_items / recipe_foods `foods` FK join for row parsers."""
-    sodium_mg = fd.get("sodium_mg")
-    if sodium_mg is None and fd.get("salt") is not None:
-        sodium_mg = _salt_g_to_sodium_mg(float(fd["salt"]))
     return {
         "name": fd.get("name"),
         "calories": fd.get("calories"),
@@ -53,7 +36,6 @@ def _food_payload_to_join(fd: Dict[str, Any]) -> Dict[str, Any]:
         "fat_g": fd.get("fat_g"),
         "fiber_g": fd.get("fiber_g"),
         "sugar_g": fd.get("sugar_g"),
-        "sodium_mg": sodium_mg,
     }
 
 
@@ -355,7 +337,6 @@ class FoodRepository(Repository):
     def _food_to_dict(self, f: Food) -> Dict[str, Any]:
         """JSON / Supabase `foods` row (column names match PostgREST)."""
         n = f.nutrition
-        salt = _sodium_mg_to_salt_g(n.sodium_mg) if n else None
         return {
             "id": f.id,
             "barcode": f.barcode,
@@ -372,7 +353,6 @@ class FoodRepository(Repository):
             "fat_monounsaturated": n.fat_monounsaturated_g if n else None,
             "fiber_g": n.fiber_g if n else None,
             "sugar_g": n.sugar_g if n else None,
-            "salt": salt,
             "serving_size": f.serving_size_g,
             "created_by": f.created_by,
             "updated_at": f.updated_at or time.time(),
@@ -380,10 +360,6 @@ class FoodRepository(Repository):
 
     @staticmethod
     def _row_to_food(row: Dict[str, Any]) -> Food:
-        sodium_mg = row.get("sodium_mg")
-        if sodium_mg is None and row.get("salt") is not None:
-            sodium_mg = _salt_g_to_sodium_mg(float(row["salt"]))
-
         def _g(key_new: str, key_legacy: str) -> Optional[float]:
             v = row.get(key_new)
             if v is None:
@@ -399,7 +375,6 @@ class FoodRepository(Repository):
             fat_g=row.get("fat_g") or 0.0,
             fiber_g=row.get("fiber_g"),
             sugar_g=row.get("sugar_g"),
-            sodium_mg=sodium_mg,
             fat_saturated_g=_g("fat_saturated", "fat_saturated_g"),
             fat_trans_g=_g("fat_trans", "fat_trans_g"),
             fat_polyunsaturated_g=_g("fat_polyunsaturated", "fat_polyunsaturated_g"),
@@ -580,7 +555,6 @@ class MealItemRepository(Repository):
             fat_g=food_data.get("fat_g") or 0.0,
             fiber_g=food_data.get("fiber_g"),
             sugar_g=food_data.get("sugar_g"),
-            sodium_mg=food_data.get("sodium_mg"),
         )
         return MealItem(
             id=row["id"],
@@ -706,7 +680,6 @@ class RecipeRepository(Repository):
                 fat_g=food_data.get("fat_g") or 0.0,
                 fiber_g=food_data.get("fiber_g"),
                 sugar_g=food_data.get("sugar_g"),
-                sodium_mg=food_data.get("sodium_mg"),
             ),
         )
 

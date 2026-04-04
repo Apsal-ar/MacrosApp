@@ -29,7 +29,6 @@ from widgets.macros_button import MacrosFilledButton
 from models.food import Food, NutritionInfo
 from screens.base_screen import BaseScreen
 from services.food_service import FoodService
-from services.repository import _salt_g_to_sodium_mg, _sodium_mg_to_salt_g
 from utils.constants import (
     RGBA_CARBS,
     RGBA_FAT,
@@ -59,9 +58,9 @@ def _nut_val_w() -> float:
 
 
 def _nut_unit_w() -> float:
-    """Consistent unit column width across all rows (sized for 'kcal')."""
+    """Consistent unit column width across all rows (sized for 'kcal'/'mg')."""
     w = float(Window.width) if Window.width else dp(360)
-    return max(dp(30), min(w * 0.085, dp(44)))
+    return max(dp(34), min(w * 0.095, dp(46)))
 
 
 def _format_serving_g(grams: float) -> str:
@@ -386,9 +385,6 @@ class FoodEditScreen(BaseScreen):
             except ValueError:
                 return None
 
-        salt_g = fo("salt")
-        sodium_mg = _salt_g_to_sodium_mg(salt_g) if salt_g is not None else None
-
         return NutritionInfo(
             calories=f("calories", 0.0),
             protein_g=f("protein", 0.0),
@@ -396,7 +392,6 @@ class FoodEditScreen(BaseScreen):
             fat_g=f("fat", 0.0),
             fiber_g=fo("fiber"),
             sugar_g=fo("sugar"),
-            sodium_mg=sodium_mg,
             fat_saturated_g=fo("fat_sat"),
             fat_trans_g=fo("fat_trans"),
             fat_polyunsaturated_g=fo("fat_poly"),
@@ -549,18 +544,6 @@ class FoodEditScreen(BaseScreen):
             tuple(RGBA_PROTEIN[:4]),
             unit_suffix=" g",
         )
-        nut.add_widget(_thin_rule())
-        salt_display = _sodium_mg_to_salt_g(n.sodium_mg)
-        self._nut_row(
-            nut,
-            "Salt",
-            "salt",
-            salt_display,
-            _WHITE,
-            unit_suffix=" g",
-            decimals=2,
-            optional=True,
-        )
         nut.bind(minimum_height=nut.setter("height"))
 
         si.add_widget(nut)
@@ -681,13 +664,13 @@ class FoodEditScreen(BaseScreen):
             orientation="horizontal",
             size_hint_y=None,
             height=dp(40),
-            padding=[indent, dp(2), dp(0), dp(2)],
-            spacing=dp(0),
+            padding=[indent, dp(2), dp(10), dp(2)],
+            spacing=dp(2),
         )
         row.add_widget(
             MDLabel(
                 text=label,
-                size_hint_x=0.40,
+                size_hint_x=1,
                 font_style="Body",
                 role="small",
                 font_size=card_font(),
@@ -729,13 +712,6 @@ class FoodEditScreen(BaseScreen):
         val_w = _nut_val_w()
         unit_w = _nut_unit_w()
 
-        value_area = MDBoxLayout(
-            orientation="horizontal",
-            size_hint_x=0.60,
-            spacing=dp(0),
-        )
-        value_area.add_widget(Widget(size_hint_x=1))
-
         tf = MDTextField(
             text=vtxt,
             mode="filled",
@@ -753,7 +729,7 @@ class FoodEditScreen(BaseScreen):
 
         _style_mdtf(tf, _WHITE, compact=True, opt_placeholder=is_opt_placeholder)
 
-        value_area.add_widget(tf)
+        row.add_widget(tf)
 
         unit_lbl = MDLabel(
             text=unit_txt,
@@ -767,10 +743,7 @@ class FoodEditScreen(BaseScreen):
             halign="left",
             valign="middle",
         )
-        value_area.add_widget(unit_lbl)
-        value_area.add_widget(Widget(size_hint_x=1))
-
-        row.add_widget(value_area)
+        row.add_widget(unit_lbl)
         parent.add_widget(row)
 
 Builder.load_file("assets/kv/food_edit.kv")

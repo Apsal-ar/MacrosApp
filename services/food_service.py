@@ -264,7 +264,6 @@ class FoodService:
                 fat_g=_get("fat") or 0.0,
                 fiber_g=_get("fiber"),
                 sugar_g=_get("sugars"),
-                sodium_mg=(_get("sodium") or 0.0) * 1000 if _get("sodium") is not None else None,
             )
 
             return Food(
