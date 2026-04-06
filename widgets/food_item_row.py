@@ -135,9 +135,9 @@ class FoodItemRow(MDBoxLayout):
 
     def _get_macro_line(self) -> str:
         return (
-            f"[color={_C_HEX}]C[/color]: {self.carbs_g:.1f}  "
-            f"[color={_P_HEX}]P[/color]: {self.protein_g:.1f}  "
-            f"[color={_F_HEX}]F[/color]: {self.fat_g:.1f}"
+            f"C: [color={_C_HEX}]{self.carbs_g:.1f}[/color]  "
+            f"P: [color={_P_HEX}]{self.protein_g:.1f}[/color]  "
+            f"F: [color={_F_HEX}]{self.fat_g:.1f}[/color]"
         )
 
     _macro_line = AliasProperty(

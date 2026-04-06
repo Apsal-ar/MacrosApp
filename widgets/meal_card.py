@@ -110,7 +110,7 @@ Builder.load_string("""
                 size_hint_y: None
                 height: self.texture_size[1]
             MDLabel:
-                text: "kcal"
+                text: "Calories"
                 font_style: "Body"
                 role: "small"
                 theme_text_color: "Custom"
@@ -134,7 +134,7 @@ Builder.load_string("""
                 size_hint_y: None
                 height: self.texture_size[1]
             MDLabel:
-                text: "protein"
+                text: "Protein"
                 font_style: "Body"
                 role: "small"
                 theme_text_color: "Custom"
@@ -158,7 +158,7 @@ Builder.load_string("""
                 size_hint_y: None
                 height: self.texture_size[1]
             MDLabel:
-                text: "carbs"
+                text: "Carbohydrate"
                 font_style: "Body"
                 role: "small"
                 theme_text_color: "Custom"
@@ -182,7 +182,7 @@ Builder.load_string("""
                 size_hint_y: None
                 height: self.texture_size[1]
             MDLabel:
-                text: "fat"
+                text: "Fat"
                 font_style: "Body"
                 role: "small"
                 theme_text_color: "Custom"
