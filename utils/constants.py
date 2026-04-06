@@ -53,7 +53,7 @@ RGBA_CALORIE_INDICATOR: List[float] = rgba_with_alpha(
 )
 
 # Divider / rule lines (MDDivider, 1dp separators)
-COLOR_LINE: str = "#94A09F"
+COLOR_LINE: str = "#2B2B2B"
 RGBA_LINE: List[float] = hex_to_rgba(COLOR_LINE)
 
 # Corner radius for primary buttons (Macros*Button) and info / warning message panels.

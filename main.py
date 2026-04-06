@@ -57,6 +57,17 @@ logger = logging.getLogger(__name__)
 # Simulate iPhone SE screen on desktop
 Window.size = (390, 844)
 
+# Global divider style: thin, full-width, dark neutral colour
+Builder.load_string("""
+#:import RGBA_LINE utils.constants.RGBA_LINE
+<MDDivider>:
+    size_hint_x: 1
+    size_hint_y: None
+    height: "0.5dp"
+    theme_divider_color: "Custom"
+    color: RGBA_LINE[:4]
+""")
+
 # ---------------------------------------------------------------------------
 # Login screen (inline KV)
 # ---------------------------------------------------------------------------

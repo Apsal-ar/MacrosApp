@@ -26,7 +26,7 @@ Builder.load_string("""
 <FoodItemRow>:
     size_hint_y: None
     height: self.minimum_height
-    padding: ["8dp", "3dp", "8dp", "3dp"]
+    padding: ["8dp", "2dp", "8dp", "2dp"]
 
     FoodItemTapArea:
         size_hint_x: 1
@@ -43,7 +43,7 @@ Builder.load_string("""
 
             MDLabel:
                 text: root.food_name
-                font_size: "10sp"
+                font_size: "12sp"
                 size_hint_y: None
                 height: self.texture_size[1]
                 shorten: True
@@ -51,7 +51,7 @@ Builder.load_string("""
 
             MDLabel:
                 text: f"{root.quantity_g:.0f}g  •  {root.calories:.0f} kcal  •  P:{root.protein_g:.1f}  C:{root.carbs_g:.1f}  F:{root.fat_g:.1f}"
-                font_size: "10sp"
+                font_size: "11sp"
                 size_hint_y: None
                 height: self.texture_size[1]
                 theme_text_color: "Secondary"

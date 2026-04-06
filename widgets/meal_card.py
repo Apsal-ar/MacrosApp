@@ -17,6 +17,7 @@ from kivy.properties import NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.behaviors import ButtonBehavior
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
+from kivymd.uix.divider import MDDivider
 
 from models.meal import Meal, MealItem
 from widgets.food_item_row import FoodItemRow
@@ -76,8 +77,6 @@ Builder.load_string("""
             shorten_from: "right"
 
     MDDivider:
-        theme_divider_color: "Custom"
-        color: "#94A09F"
 
     MDBoxLayout:
         id: items_container
@@ -85,12 +84,14 @@ Builder.load_string("""
         size_hint_y: None
         height: self.minimum_height
 
+    MDDivider:
+
     # 4-column macro summary: Calories | Protein | Carbs | Fat
     MDBoxLayout:
         size_hint_y: None
         height: self.minimum_height
         spacing: "4dp"
-        padding: ["2dp", "2dp", "2dp", "2dp"]
+        padding: ["2dp", "1dp", "2dp", "1dp"]
 
         MDBoxLayout:
             orientation: "vertical"
@@ -100,7 +101,7 @@ Builder.load_string("""
             MDLabel:
                 text: root._cal_summary
                 bold: True
-                font_size: "10sp"
+                font_size: "11sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_PRIMARY[:4]
                 halign: "center"
@@ -108,7 +109,7 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "kcal"
-                font_size: "9sp"
+                font_size: "10sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_PRIMARY[:4]
                 halign: "center"
@@ -123,7 +124,7 @@ Builder.load_string("""
             MDLabel:
                 text: root._pro_summary
                 bold: True
-                font_size: "10sp"
+                font_size: "11sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_PROTEIN[:4]
                 halign: "center"
@@ -131,7 +132,7 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "protein"
-                font_size: "9sp"
+                font_size: "10sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_PROTEIN[:4]
                 halign: "center"
@@ -146,7 +147,7 @@ Builder.load_string("""
             MDLabel:
                 text: root._carb_summary
                 bold: True
-                font_size: "10sp"
+                font_size: "11sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_CARBS[:4]
                 halign: "center"
@@ -154,7 +155,7 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "carbs"
-                font_size: "9sp"
+                font_size: "10sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_CARBS[:4]
                 halign: "center"
@@ -169,7 +170,7 @@ Builder.load_string("""
             MDLabel:
                 text: root._fat_summary
                 bold: True
-                font_size: "10sp"
+                font_size: "11sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_FAT[:4]
                 halign: "center"
@@ -177,12 +178,14 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "fat"
-                font_size: "9sp"
+                font_size: "10sp"
                 theme_text_color: "Custom"
                 text_color: RGBA_FAT[:4]
                 halign: "center"
                 size_hint_y: None
                 height: self.texture_size[1]
+
+    MDDivider:
 
     _AddFoodBtn:
         on_release: root.dispatch("on_add_food", root.meal_id)
@@ -264,8 +267,12 @@ class MealCard(MDCard):
         Args:
             item: MealItem with scaled nutrition populated.
         """
+        container = self.ids.items_container
         row = self._make_row(item)
-        self.ids.items_container.add_widget(row)
+        existing = [w for w in container.children if isinstance(w, FoodItemRow)]
+        if existing:
+            container.add_widget(MDDivider())
+        container.add_widget(row)
         s = item.scaled_nutrition
         self._calories_total += s.calories
         self._protein_total += s.protein_g
@@ -274,15 +281,22 @@ class MealCard(MDCard):
         self._update_summaries()
 
     def remove_item(self, item_id: str) -> None:
-        """Remove the row with matching item_id from the card.
+        """Remove the row with matching item_id and its adjacent divider.
 
         Args:
             item_id: UUID of the MealItem to remove.
         """
         container = self.ids.items_container
-        for child in list(container.children):
+        children = list(container.children)
+        for i, child in enumerate(children):
             if isinstance(child, FoodItemRow) and child.item_id == item_id:
                 container.remove_widget(child)
+                # Remove the divider displayed after this row (lower index in reversed list)
+                if i > 0 and isinstance(children[i - 1], MDDivider):
+                    container.remove_widget(children[i - 1])
+                # Fallback: remove the divider displayed before this row (higher index)
+                elif i + 1 < len(children) and isinstance(children[i + 1], MDDivider):
+                    container.remove_widget(children[i + 1])
                 self._resum_totals(container)
                 break
 
@@ -308,8 +322,10 @@ class MealCard(MDCard):
     def _rebuild_items(self, items: List[MealItem]) -> None:
         container = self.ids.items_container
         container.clear_widgets()
-        for item in items:
+        for i, item in enumerate(items):
             container.add_widget(self._make_row(item))
+            if i < len(items) - 1:
+                container.add_widget(MDDivider())
 
     def _make_row(self, item: MealItem) -> FoodItemRow:
         s = item.scaled_nutrition

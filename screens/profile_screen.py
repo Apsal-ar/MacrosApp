@@ -148,8 +148,6 @@ _KV = """
                         text: "Female"
 
                 MDDivider:
-                    theme_divider_color: "Custom"
-                    color: "#94A09F"
 
                 MDListItem:
                     on_release: root.select("male")
@@ -243,8 +241,6 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
-                        theme_divider_color: "Custom"
-                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("weight")
@@ -264,8 +260,6 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
-                        theme_divider_color: "Custom"
-                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("gender")
@@ -285,8 +279,6 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
-                        theme_divider_color: "Custom"
-                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("age")
@@ -306,8 +298,6 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
-                        theme_divider_color: "Custom"
-                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("activity")
@@ -327,8 +317,6 @@ _KV = """
                             shorten_from: "left"
 
                     MDDivider:
-                        theme_divider_color: "Custom"
-                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("goal")
@@ -425,8 +413,6 @@ _KV = """
                             shorten: True
 
                     MDDivider:
-                        theme_divider_color: "Custom"
-                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("neck")
@@ -445,8 +431,6 @@ _KV = """
                             shorten: True
 
                     MDDivider:
-                        theme_divider_color: "Custom"
-                        color: "#94A09F"
 
                     MDListItem:
                         on_release: root.edit_field("hips")
