@@ -10,6 +10,8 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDIconButton
@@ -41,21 +43,6 @@ def card_font() -> float:
     return sp(13.0 * factor)
 
 
-def _nut_val_w() -> float:
-    """Responsive width for the numeric value text field.
-
-    Minimum dp(68) — just wide enough for 'Optional' (8 chars @ ~13 sp)
-    plus dp(4) inner padding.  Keeping this narrow ensures the right-aligned
-    number sits tight against the unit label with no dead space.
-    """
-    w = float(Window.width) if Window.width else dp(360)
-    return max(dp(68), min(w * 0.19, dp(90)))
-
-
-def _nut_unit_w() -> float:
-    """Consistent unit column width across all rows (sized for 'kcal'/'mg')."""
-    w = float(Window.width) if Window.width else dp(360)
-    return max(dp(34), min(w * 0.095, dp(46)))
 
 
 
@@ -129,7 +116,7 @@ class FoodEditScreen(BaseScreen):
         super().__init__(**kwargs)
         self._food_service = FoodService()
         self._draft: Optional[Food] = None
-        self._field_refs: dict[str, MDTextField] = {}
+        self._field_refs: dict[str, object] = {}
         self._barcode_scan_cb: Optional[Callable[[], None]] = None
         self._return_screen: str = "food_search"
 
@@ -545,26 +532,25 @@ class FoodEditScreen(BaseScreen):
         calories_mode: bool = False,
         optional: bool = False,
     ) -> None:
-        row = MDBoxLayout(
+        row = BoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=dp(40),
-            padding=[indent, 0, dp(6), 0],
-            spacing=dp(0),
+            height=dp(48),
         )
-        row.add_widget(
-            MDLabel(
-                text=label,
-                size_hint_x=1,
-                font_style="Body",
-                role="small",
-                font_size=card_font(),
-                theme_text_color="Custom",
-                text_color=label_rgba,
-                halign="left",
-                valign="middle",
-            )
+
+        lbl = MDLabel(
+            text=label,
+            size_hint_x=0.5,
+            font_style="Body",
+            role="small",
+            font_size=card_font(),
+            theme_text_color="Custom",
+            text_color=label_rgba,
+            halign="left",
+            valign="middle",
         )
+        lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
+        row.add_widget(lbl)
 
         vtxt = ""
         is_opt_placeholder = False
@@ -593,35 +579,31 @@ class FoodEditScreen(BaseScreen):
         if vtxt and vtxt.startswith("."):
             vtxt = f"0{vtxt}"
 
-        unit_txt = unit_suffix.strip()
-        val_w = _nut_val_w()
-        unit_w = _nut_unit_w()
-
-        tf = MDTextField(
+        _teal = list(RGBA_PRIMARY[:3]) + [1.0]
+        ti = TextInput(
             text=vtxt,
-            mode="filled",
-            size_hint_x=None,
-            width=val_w,
-            size_hint_y=None,
-            height=dp(40),  # match row height so inner TextInput top = row top
-            theme_bg_color="Custom",
-            fill_color_normal=tuple(RGBA_SURFACE[:4]),
-            fill_color_focus=tuple(RGBA_SURFACE[:4]),
-            theme_line_color="Custom",
-            line_color_normal=(0, 0, 0, 0),
-            line_color_focus=(0, 0, 0, 0),
+            size_hint_x=0.4,
+            multiline=False,
             input_filter="float",
+            halign="right",
+            padding=[0, 12, 0, 0],
+            background_normal="",
+            background_active="",
+            background_color=(0, 0, 0, 0),
+            foreground_color=list(_WHITE),
+            cursor_color=_teal,
+            cursor_width=dp(2),
+            selection_color=list(RGBA_PRIMARY[:3]) + [0.25],
+            font_size=card_font(),
+            hint_text="Optional" if is_opt_placeholder else "",
+            hint_text_color=list(_HINT),
         )
-        self._field_refs[key] = tf
-
-        _style_mdtf(tf, _WHITE, compact=True, opt_placeholder=is_opt_placeholder)
-
-        row.add_widget(tf)
+        self._field_refs[key] = ti
+        row.add_widget(ti)
 
         unit_lbl = MDLabel(
-            text=unit_txt,
-            size_hint_x=None,
-            width=unit_w,
+            text=unit_suffix.strip(),
+            size_hint_x=0.1,
             font_style="Body",
             role="small",
             font_size=card_font(),
@@ -630,6 +612,7 @@ class FoodEditScreen(BaseScreen):
             halign="left",
             valign="middle",
         )
+        unit_lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
         row.add_widget(unit_lbl)
         parent.add_widget(row)
 
