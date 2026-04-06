@@ -55,7 +55,8 @@ Builder.load_string("""
 
             MDLabel:
                 text: root.food_name
-                font_size: "12sp"
+                theme_font_size: "Custom"
+                font_size: "14sp"
                 bold: True
                 halign: "left"
                 size_hint_y: None
@@ -66,7 +67,8 @@ Builder.load_string("""
 
             MDLabel:
                 text: f"{root.quantity_g:.0f}g"
-                font_size: "11sp"
+                theme_font_size: "Custom"
+                font_size: "12sp"
                 halign: "left"
                 size_hint_y: None
                 height: self.texture_size[1]
@@ -82,7 +84,8 @@ Builder.load_string("""
 
             MDLabel:
                 text: f"{root.calories:.0f}"
-                font_size: "12sp"
+                theme_font_size: "Custom"
+                font_size: "14sp"
                 bold: True
                 halign: "right"
                 text_size: self.size
@@ -94,7 +97,8 @@ Builder.load_string("""
             MDLabel:
                 text: root._macro_line
                 markup: True
-                font_size: "11sp"
+                theme_font_size: "Custom"
+                font_size: "12sp"
                 halign: "right"
                 text_size: self.size
                 size_hint_y: None
@@ -131,9 +135,9 @@ class FoodItemRow(MDBoxLayout):
 
     def _get_macro_line(self) -> str:
         return (
-            f"[color={_C_HEX}]C[/color]:{self.carbs_g:.1f} "
-            f"[color={_P_HEX}]P[/color]:{self.protein_g:.1f} "
-            f"[color={_F_HEX}]F[/color]:{self.fat_g:.1f}"
+            f"[color={_C_HEX}]C[/color]: {self.carbs_g:.1f}  "
+            f"[color={_P_HEX}]P[/color]: {self.protein_g:.1f}  "
+            f"[color={_F_HEX}]F[/color]: {self.fat_g:.1f}"
         )
 
     _macro_line = AliasProperty(

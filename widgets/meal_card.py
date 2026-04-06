@@ -41,6 +41,7 @@ Builder.load_string("""
         text: "[size=15sp]+[/size]  Add food"
         markup: True
         bold: True
+        theme_font_size: "Custom"
         font_size: "12sp"
         halign: "center"
         valign: "middle"
@@ -62,6 +63,7 @@ Builder.load_string("""
     MDBoxLayout:
         size_hint_y: None
         height: "36dp"
+        padding: ["8dp", "0dp", "0dp", "0dp"]
 
         MDLabel:
             id: label_display
