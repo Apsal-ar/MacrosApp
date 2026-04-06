@@ -210,7 +210,7 @@ class LibraryFoodDetailSheet(ModalView):
         self,
         food: Food,
         on_add: Callable[[float, str], None],
-        on_edit: Optional[Callable[[], None]] = None,
+        on_edit: Optional[Callable[[float], None]] = None,
         *,
         primary_button_text: str = "Add",
         initial_quantity_g: Optional[float] = None,
@@ -724,8 +724,9 @@ class LibraryFoodDetailSheet(ModalView):
         if self._on_edit is None:
             return
         cb = self._on_edit
+        qty = self._parse_qty()
         self.dismiss()
-        Clock.schedule_once(lambda _dt: cb(), 0.12)
+        Clock.schedule_once(lambda _dt: cb(qty), 0.12)
 
     def _confirm_add(self) -> None:
         qty = self._parse_qty()

@@ -14,7 +14,7 @@ import logging
 import time
 from dataclasses import replace
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Set
 
 from kivy.clock import Clock
 from kivy.lang import Builder
@@ -58,6 +58,7 @@ class TrackerScreen(BaseScreen):
         self._current_date: date = date.today()
         self._meals: Dict[int, Meal] = {}          # meal_number → Meal
         self._meal_cards: Dict[str, MealCard] = {}  # meal_id → MealCard
+        self._virtual_meal_ids: Set[str] = set()   # meal IDs not yet saved to DB
         self._food_service = FoodService()
         self._goals_calorie: float = 2000.0
         self._goals_protein: float = 150.0
@@ -159,6 +160,7 @@ class TrackerScreen(BaseScreen):
         self.ids.meals_container.clear_widgets()
         self._meals.clear()
         self._meal_cards.clear()
+        self._virtual_meal_ids = set()
 
         goals_repo = self.get_repo(GoalsRepository)
         goals = goals_repo.get_for_profile(user_id)
@@ -169,13 +171,30 @@ class TrackerScreen(BaseScreen):
         carb_target = self._goals_carbs / mpd
         fat_target = self._goals_fat / mpd
 
+        # Only fetch meals that already exist in the DB — no auto-creation.
+        existing = meal_repo.get_meals_for_date(user_id, date_str)
+        existing_by_number: Dict[int, Meal] = {m.meal_number: m for m in existing}
+
         for meal_number in range(1, self._meals_per_day + 1):
             label = meal_labels.get(
                 meal_number,
                 DEFAULT_MEAL_LABELS.get(meal_number, f"Meal {meal_number}"),
             )
-            meal = meal_repo.get_or_create(user_id, date_str, meal_number, label)
-            meal.items = item_repo.get_items_for_meal(meal.id)
+            if meal_number in existing_by_number:
+                meal = existing_by_number[meal_number]
+                meal.items = item_repo.get_items_for_meal(meal.id)
+            else:
+                # Virtual meal: lives in memory only until the user adds food to it.
+                meal = Meal(
+                    id=Repository.new_id(),
+                    profile_id=user_id,
+                    date=date_str,
+                    meal_number=meal_number,
+                    label=label,
+                    updated_at=time.time(),
+                )
+                self._virtual_meal_ids.add(meal.id)
+
             self._meals[meal_number] = meal
 
             card = MealCard()
@@ -248,12 +267,22 @@ class TrackerScreen(BaseScreen):
     ) -> None:
         """Create a MealItem and add it to the meal card.
 
+        If the target meal is still virtual (no DB row yet), persist it first.
+
         Args:
             meal_id: Target Meal UUID.
             food: The selected or created Food.
             quantity_g: Consumed quantity in grams.
             display_name: Optional label for the log entry (e.g. library sheet edit).
         """
+        # Persist the meal row on first food addition if it was virtual.
+        if meal_id in self._virtual_meal_ids:
+            meal = next((m for m in self._meals.values() if m.id == meal_id), None)
+            if meal is not None:
+                meal_repo: MealRepository = self.get_repo(MealRepository)
+                meal_repo.save(meal)
+            self._virtual_meal_ids.discard(meal_id)
+
         name = (display_name or "").strip() or food.name
         item = MealItem(
             id=Repository.new_id(),
@@ -319,30 +348,37 @@ class TrackerScreen(BaseScreen):
                 meal_card.update_item(item)
             self._update_daily_totals()
 
-        def on_edit_food() -> None:
+        def on_edit_food(_qty_g: float = 0.0) -> None:
             to_edit = food_repo.get(item.food_id) or food
             if uid and not to_edit.created_by:
                 to_edit = replace(to_edit, created_by=uid)
-            self._open_food_edit_from_tracker(to_edit)
+            # Re-open the nutrition sheet after the user finishes editing.
+            def _reopen_sheet() -> None:
+                Clock.schedule_once(lambda _dt: self._on_edit_item(None, item_id), 0)
+            self._open_food_edit_from_tracker(to_edit, on_return=_reopen_sheet)
 
         sheet = LibraryFoodDetailSheet(
             food=food,
             on_add=on_confirm,
             on_edit=on_edit_food,
-            primary_button_text="UPDATE",
+            primary_button_text="Update",
             initial_quantity_g=item.quantity_g,
         )
         sheet.open()
 
-    def _open_food_edit_from_tracker(self, food: Food) -> None:
-        """Full-screen food editor; back returns to Tracker."""
+    def _open_food_edit_from_tracker(
+        self,
+        food: Food,
+        on_return: Optional[Callable] = None,
+    ) -> None:
+        """Full-screen food editor; back returns to Tracker (then fires on_return)."""
         try:
             app = MDApp.get_running_app()
             shell = app.root.get_screen("app")
             sm = shell.ids.inner_sm
             edit = sm.get_screen("food_edit")
             edit.set_return_screen("tracker")
-            edit.bind_food(food, on_barcode_scan=None)
+            edit.bind_food(food, on_barcode_scan=None, on_return=on_return)
             sm.current = "food_edit"
         except Exception as exc:  # pylint: disable=broad-except
             self.show_error("Could not open food editor.")

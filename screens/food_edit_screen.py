@@ -68,6 +68,7 @@ class FoodEditScreen(BaseScreen):
         self._draft: Optional[Food] = None
         self._field_refs: dict[str, object] = {}
         self._barcode_scan_cb: Optional[Callable[[], None]] = None
+        self._on_return_cb: Optional[Callable[[], None]] = None
         self._return_screen: str = "food_search"
 
     def set_return_screen(self, name: str) -> None:
@@ -79,9 +80,16 @@ class FoodEditScreen(BaseScreen):
         food: Food,
         *,
         on_barcode_scan: Optional[Callable[[], None]] = None,
+        on_return: Optional[Callable[[], None]] = None,
     ) -> None:
-        """Load a copy of ``food`` for editing."""
+        """Load a copy of ``food`` for editing.
+
+        Args:
+            on_return: Optional callback fired after back-navigation completes.
+                       Use this to re-open a sheet that was dismissed to enter edit.
+        """
         self._barcode_scan_cb = on_barcode_scan
+        self._on_return_cb = on_return
         self._draft = self._clone_food(food)
         Clock.schedule_once(lambda _dt: self._rebuild_ui(), 0)
 
@@ -114,6 +122,8 @@ class FoodEditScreen(BaseScreen):
             pass
 
     def go_back(self) -> None:
+        on_return = self._on_return_cb
+        self._on_return_cb = None
         try:
             app = MDApp.get_running_app()
             shell = app.root.get_screen("app")
@@ -129,6 +139,8 @@ class FoodEditScreen(BaseScreen):
                 shell.ids.inner_sm.current = self._return_screen or "food_search"
             except Exception:  # pylint: disable=broad-except
                 pass
+        if on_return:
+            Clock.schedule_once(lambda _dt: on_return(), 0.15)
 
     def _on_barcode_icon(self) -> None:
         if self._barcode_scan_cb:

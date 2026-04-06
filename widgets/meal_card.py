@@ -87,6 +87,8 @@ Builder.load_string("""
         height: self.minimum_height
 
     MDDivider:
+        opacity: 1 if items_container.children else 0
+        height: "0.5dp" if items_container.children else "0dp"
 
     # 4-column macro summary: Calories | Protein | Carbs | Fat
     MDBoxLayout:

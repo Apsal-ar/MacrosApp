@@ -34,6 +34,7 @@ from utils.constants import (
 )
 from services.barcode_service import BarcodeService
 from services.food_service import FoodService
+from services.repository import FoodRepository
 from widgets.library_food_detail_sheet import LibraryFoodDetailSheet
 import widgets.macros_button  # noqa: F401 — registers Macros*Button for food_search.kv
 Builder.load_file("assets/kv/food_search.kv")
@@ -139,6 +140,9 @@ class FoodSearchScreen(BaseScreen):
         self._search_event: Optional[object] = None
         self._barcode_scan_targets_edit: bool = False
         self._skip_reset_once: bool = False
+        # Pending add after returning from FoodEditScreen
+        self._pending_edit_food_id: Optional[str] = None
+        self._pending_edit_qty: Optional[float] = None
 
     def on_pre_enter(self, *args: object) -> None:
         self._set_bottom_nav_visible(False)
@@ -147,8 +151,24 @@ class FoodSearchScreen(BaseScreen):
             self.profile_id = uid
         if getattr(self, "_skip_reset_once", False):
             self._skip_reset_once = False
+            self._maybe_finish_pending_edit_add()
             return
         self._reset_ui()
+
+    def _maybe_finish_pending_edit_add(self) -> None:
+        """If the user came back from FoodEditScreen via an Edit→Save flow, add the food."""
+        food_id = self._pending_edit_food_id
+        qty = self._pending_edit_qty
+        self._pending_edit_food_id = None
+        self._pending_edit_qty = None
+        if food_id is None or qty is None:
+            return
+        food_repo: FoodRepository = self.get_repo(FoodRepository)
+        food = food_repo.get(food_id)
+        if food is None:
+            self.show_error("Could not find the edited food. Add it again.")
+            return
+        self._finish_add(food, qty)
 
     def on_leave(self, *args: object) -> None:
         self._set_bottom_nav_visible(True)
@@ -463,8 +483,11 @@ class FoodSearchScreen(BaseScreen):
             self._library_detail_sheet = None
             self._finish_add(food, qty_g, display_name)
 
-        def _on_edit() -> None:
+        def _on_edit(qty_g: float) -> None:
             self._library_detail_sheet = None
+            # Remember the selected quantity so we can add the food after editing.
+            self._pending_edit_food_id = food.id
+            self._pending_edit_qty = qty_g
             self._open_food_edit(food)
 
         self._library_detail_sheet = LibraryFoodDetailSheet(
