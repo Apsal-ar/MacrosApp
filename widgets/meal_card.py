@@ -91,7 +91,7 @@ Builder.load_string("""
         size_hint_y: None
         height: self.minimum_height
         spacing: "4dp"
-        padding: ["2dp", "1dp", "2dp", "1dp"]
+        padding: ["2dp", "0dp", "2dp", "0dp"]
 
         MDBoxLayout:
             orientation: "vertical"
@@ -100,8 +100,8 @@ Builder.load_string("""
             spacing: "0dp"
             MDLabel:
                 text: root._cal_summary
-                bold: True
-                font_size: "11sp"
+                font_style: "Title"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_PRIMARY[:4]
                 halign: "center"
@@ -109,7 +109,8 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "kcal"
-                font_size: "10sp"
+                font_style: "Body"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_PRIMARY[:4]
                 halign: "center"
@@ -123,8 +124,8 @@ Builder.load_string("""
             spacing: "0dp"
             MDLabel:
                 text: root._pro_summary
-                bold: True
-                font_size: "11sp"
+                font_style: "Title"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_PROTEIN[:4]
                 halign: "center"
@@ -132,7 +133,8 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "protein"
-                font_size: "10sp"
+                font_style: "Body"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_PROTEIN[:4]
                 halign: "center"
@@ -146,8 +148,8 @@ Builder.load_string("""
             spacing: "0dp"
             MDLabel:
                 text: root._carb_summary
-                bold: True
-                font_size: "11sp"
+                font_style: "Title"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_CARBS[:4]
                 halign: "center"
@@ -155,7 +157,8 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "carbs"
-                font_size: "10sp"
+                font_style: "Body"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_CARBS[:4]
                 halign: "center"
@@ -169,8 +172,8 @@ Builder.load_string("""
             spacing: "0dp"
             MDLabel:
                 text: root._fat_summary
-                bold: True
-                font_size: "11sp"
+                font_style: "Title"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_FAT[:4]
                 halign: "center"
@@ -178,7 +181,8 @@ Builder.load_string("""
                 height: self.texture_size[1]
             MDLabel:
                 text: "fat"
-                font_size: "10sp"
+                font_style: "Body"
+                role: "small"
                 theme_text_color: "Custom"
                 text_color: RGBA_FAT[:4]
                 halign: "center"
