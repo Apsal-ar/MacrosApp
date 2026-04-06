@@ -716,6 +716,9 @@ class LibraryFoodDetailSheet(ModalView):
         self._nf_row("Sugars", self._fmt_g(sugar_val), white, indent=ind)
         self._nf_divider()
         self._nf_row("Protein (g)", self._fmt_g(n.protein_g), prot_c)
+        if n.salt_mg is not None:
+            self._nf_divider()
+            self._nf_row("Salt", f"{n.salt_mg:.0f} mg", white, indent=ind)
 
     def _on_edit_pressed(self) -> None:
         if self._on_edit is None:

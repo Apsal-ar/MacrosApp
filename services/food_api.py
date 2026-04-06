@@ -71,6 +71,7 @@ def _product_dict_to_food(product: Dict[str, Any]) -> Food | None:
     mono = _float_nutriment(nutriments, "monounsaturated-fat_100g")
     fiber = _float_nutriment(nutriments, "fiber_100g")
     sugars = _float_nutriment(nutriments, "sugars_100g")
+    salt_g = _float_nutriment(nutriments, "salt_100g")
     nutrition = NutritionInfo(
         calories=_float_nutriment(nutriments, "energy-kcal_100g"),
         protein_g=_float_nutriment(nutriments, "proteins_100g"),
@@ -82,6 +83,7 @@ def _product_dict_to_food(product: Dict[str, Any]) -> Food | None:
         fat_trans_g=trans if trans > 0 else None,
         fat_polyunsaturated_g=poly if poly > 0 else None,
         fat_monounsaturated_g=mono if mono > 0 else None,
+        salt_mg=salt_g * 1000.0 if salt_g > 0 else None,
     )
     code = product.get("code") or product.get("barcode")
     brands = product.get("brands") or ""
@@ -112,6 +114,7 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
     fat_trans_g: Optional[float] = None
     fat_polyunsaturated_g: Optional[float] = None
     fat_monounsaturated_g: Optional[float] = None
+    salt_mg: Optional[float] = None
     if not isinstance(food_nutrients, list):
         return NutritionInfo(
             calories=0.0,
@@ -160,6 +163,8 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
             fat_polyunsaturated_g = val
         elif nname == "Fatty acids, total monounsaturated":
             fat_monounsaturated_g = val
+        elif nname == "Sodium, Na":
+            salt_mg = val
     return NutritionInfo(
         calories=calories,
         protein_g=protein_g,
@@ -171,6 +176,7 @@ def _fdc_nutrients_to_info(food_nutrients: Any) -> NutritionInfo:
         fat_trans_g=fat_trans_g,
         fat_polyunsaturated_g=fat_polyunsaturated_g,
         fat_monounsaturated_g=fat_monounsaturated_g,
+        salt_mg=salt_mg,
     )
 
 

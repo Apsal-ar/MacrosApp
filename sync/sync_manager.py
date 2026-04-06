@@ -39,12 +39,12 @@ _PULL_ORDER = [
 
 _MEAL_ITEM_SELECT = (
     "id, meal_id, food_id, quantity_g, updated_at, "
-    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g)"
+    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, salt)"
 )
 
 _RECIPE_FOODS_SELECT = (
     "id, recipe_id, food_id, quantity_g, updated_at, "
-    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g)"
+    "foods(name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, salt)"
 )
 
 

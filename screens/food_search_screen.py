@@ -451,7 +451,7 @@ class FoodSearchScreen(BaseScreen):
 
     def _select_food(self, food: Food) -> None:
         self._selected_food = food
-        if self.search_tab == 2:
+        if self.search_tab in (0, 2):
             self._open_library_food_detail(food)
         else:
             self._show_quantity_row()
@@ -614,7 +614,11 @@ class FoodSearchScreen(BaseScreen):
             try:
                 shell = MDApp.get_running_app().root.get_screen("app")
                 ed = shell.ids.inner_sm.get_screen("food_edit")
-                ed.set_barcode_text(barcode)
+                food = self._food_service.lookup_barcode(barcode, self.profile_id)
+                if food:
+                    ed.populate_from_food(food)
+                else:
+                    ed.set_barcode_text(barcode)
             except Exception:  # pylint: disable=broad-except
                 pass
             return

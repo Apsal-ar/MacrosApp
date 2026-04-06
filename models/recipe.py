@@ -77,6 +77,8 @@ class Recipe:
                 totals.fiber_g = (totals.fiber_g or 0.0) + scaled.fiber_g
             if scaled.sugar_g is not None:
                 totals.sugar_g = (totals.sugar_g or 0.0) + scaled.sugar_g
+            if scaled.salt_mg is not None:
+                totals.salt_mg = (totals.salt_mg or 0.0) + scaled.salt_mg
         return totals
 
     @property
@@ -98,4 +100,5 @@ class Recipe:
             fat_g=total.fat_g * factor,
             fiber_g=total.fiber_g * factor if total.fiber_g is not None else None,
             sugar_g=total.sugar_g * factor if total.sugar_g is not None else None,
+            salt_mg=total.salt_mg * factor if total.salt_mg is not None else None,
         )

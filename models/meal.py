@@ -79,4 +79,6 @@ class Meal:
                 totals.fiber_g = (totals.fiber_g or 0.0) + scaled.fiber_g
             if scaled.sugar_g is not None:
                 totals.sugar_g = (totals.sugar_g or 0.0) + scaled.sugar_g
+            if scaled.salt_mg is not None:
+                totals.salt_mg = (totals.salt_mg or 0.0) + scaled.salt_mg
         return totals

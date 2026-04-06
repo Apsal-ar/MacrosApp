@@ -16,7 +16,6 @@ from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDIconButton
 from kivymd.uix.label import MDLabel
-from kivymd.uix.textfield import MDTextField
 
 import widgets.macros_button  # noqa: F401 — KV registration side-effect
 from models.food import Food, NutritionInfo
@@ -45,55 +44,6 @@ def card_font() -> float:
 
 
 
-
-def _style_mdtf(
-    tf: MDTextField,
-    fg: tuple[float, float, float, float],
-    *,
-    right_align: bool = True,
-    compact: bool = False,
-    opt_placeholder: bool = False,
-) -> None:
-    """Apply text alignment, padding, and foreground color to the inner TextInput.
-
-    Do not pass ``text_color=`` into ``MDTextField(...)`` — Kivy ``TextInput`` rejects it.
-    When ``opt_placeholder=True``, sets Kivy's native ``TextInput.hint_text`` = "Optional"
-    on the inner widget — this is a simple placeholder that shows only when the field is
-    empty and disappears the moment the user types, with no floating-label animation.
-    """
-
-    _teal = list(RGBA_PRIMARY[:3]) + [1.0]
-
-    def _apply(*_a: object) -> None:
-        try:
-            inner = tf.ids.get("text_field")
-            if inner is None:
-                Clock.schedule_once(_apply, 0.05)
-                return
-            inner.font_size = card_font()
-            inner.multiline = False
-            if right_align:
-                inner.halign = "right"
-                if compact:
-                    # Row has no vertical padding; MDTextField fills the full
-                    # dp(40) row height.  (40 - ~16 sp text) / 2 ≈ dp(12) centers
-                    # the text to match the unit MDLabel's valign="middle".
-                    inner.padding = [dp(2), dp(12), dp(2), dp(12)]
-                else:
-                    inner.padding = [dp(5), dp(5), dp(6), dp(5)]
-            inner.foreground_color = fg
-            inner.cursor_color = _teal
-            inner.cursor_width = dp(2)
-            inner.selection_color = list(RGBA_PRIMARY[:3]) + [0.25]
-            if opt_placeholder:
-                inner.hint_text = "Optional"
-                inner.hint_text_color = list(_HINT)
-            # KivyMD resets cursor_color internally on focus — reapply every time.
-            inner.bind(focus=lambda inst, val: setattr(inst, "cursor_color", _teal))
-        except Exception:  # pylint: disable=broad-except
-            pass
-
-    Clock.schedule_once(_apply, 0)
 
 
 
@@ -233,7 +183,7 @@ class FoodEditScreen(BaseScreen):
             updated_at=time.time(),
             created_by=self._draft.created_by or uid,
         )
-        self._food_service.save_food(updated)
+        self._food_service.save_food_dedup(updated, uid)
         self.show_success("Food saved")
         self.go_back()
 
@@ -269,6 +219,7 @@ class FoodEditScreen(BaseScreen):
             fat_trans_g=fo("fat_trans"),
             fat_polyunsaturated_g=fo("fat_poly"),
             fat_monounsaturated_g=fo("fat_mono"),
+            salt_mg=fo("salt"),
         )
 
     def _rebuild_ui(self) -> None:
@@ -313,7 +264,9 @@ class FoodEditScreen(BaseScreen):
             if abs(serving_val - round(serving_val)) < 1e-6
             else f"{serving_val:.1f}"
         )
-        self._add_metadata_text_row(info, "Serving size (g)", "serving", serving_txt)
+        self._add_metadata_text_row(
+            info, "Serving size", "serving", serving_txt, numeric=True, unit_suffix="g"
+        )
         info.bind(minimum_height=info.setter("height"))
 
         si.add_widget(info)
@@ -414,6 +367,17 @@ class FoodEditScreen(BaseScreen):
             tuple(RGBA_PROTEIN[:4]),
             unit_suffix=" g",
         )
+        nut.add_widget(_thin_rule())
+        self._nut_row(
+            nut,
+            "Salt",
+            "salt",
+            n.salt_mg,
+            _WHITE,
+            unit_suffix=" mg",
+            decimals=0,
+            optional=True,
+        )
         nut.bind(minimum_height=nut.setter("height"))
 
         si.add_widget(nut)
@@ -423,6 +387,81 @@ class FoodEditScreen(BaseScreen):
         if w:
             w.text = barcode
 
+    def populate_from_food(self, food: Food) -> None:
+        """Replace the draft with ``food`` and rebuild the entire UI.
+
+        Called when a barcode scan finds a matching food in the database so
+        all fields (name, brand, nutrition …) are filled automatically.
+        """
+        self._draft = self._clone_food(food)
+        Clock.schedule_once(lambda _dt: self._rebuild_ui(), 0)
+
+    def _meta_row_base(self, label: str) -> tuple[BoxLayout, MDLabel]:
+        """Shared skeleton: same BoxLayout + left MDLabel as _nut_row."""
+        row = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(48),
+            spacing=dp(6),
+        )
+        lbl = MDLabel(
+            text=label,
+            size_hint_x=0.55,
+            font_style="Body",
+            role="small",
+            font_size=card_font(),
+            theme_text_color="Custom",
+            text_color=_WHITE,
+            halign="left",
+            valign="middle",
+        )
+        lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
+        row.add_widget(lbl)
+        return row, lbl
+
+    def _meta_ti(self, value: str, *, optional: bool = False, numeric: bool = False) -> TextInput:
+        """Styled TextInput identical to the one used in _nut_row."""
+        _teal = list(RGBA_PRIMARY[:3]) + [1.0]
+        ti = TextInput(
+            text=value,
+            size_hint_x=1,
+            multiline=False,
+            input_filter="float" if numeric else None,
+            halign="right",
+            background_normal="",
+            background_active="",
+            background_color=(0, 0, 0, 0),
+            foreground_color=list(_WHITE),
+            cursor_color=_teal,
+            cursor_width=dp(2),
+            selection_color=list(RGBA_PRIMARY[:3]) + [0.25],
+            font_size=card_font(),
+            hint_text="Optional" if optional else "",
+            hint_text_color=list(_HINT),
+        )
+        ti.bind(height=lambda w, h: setattr(w, "padding", [0, h * 0.25, 0, 0]))
+        return ti
+
+    def _meta_unit_lbl(self, unit: str) -> MDLabel:
+        """Auto-width unit label identical to the one used in _nut_row."""
+        lbl = MDLabel(
+            text=unit,
+            size_hint_x=None,
+            width=dp(36),
+            font_style="Body",
+            role="small",
+            font_size=card_font(),
+            theme_text_color="Custom",
+            text_color=_HINT,
+            halign="left",
+            valign="middle",
+        )
+        lbl.bind(
+            size=lambda w, s: setattr(w, "text_size", s),
+            texture_size=lambda w, ts: setattr(w, "width", ts[0]) if ts[0] > 0 else None,
+        )
+        return lbl
+
     def _add_metadata_text_row(
         self,
         parent: MDBoxLayout,
@@ -431,90 +470,29 @@ class FoodEditScreen(BaseScreen):
         value: str,
         *,
         optional_field: bool = False,
+        unit_suffix: str = "",
+        numeric: bool = False,
     ) -> None:
-        row = MDBoxLayout(
-            orientation="horizontal",
-            size_hint_y=None,
-            height=dp(46),
-            padding=[dp(12), dp(4), dp(12), dp(4)],
-            spacing=dp(8),
-        )
-        row.add_widget(
-            MDLabel(
-                text=label,
-                size_hint_x=None,
-                width=dp(132),
-                font_style="Body",
-                role="small",
-                font_size=card_font(),
-                theme_text_color="Custom",
-                text_color=_WHITE,
-                halign="left",
-                valign="middle",
-            )
-        )
-        empty = not (value or "").strip()
-        tf = MDTextField(
-            text=value if not (optional_field and empty) else "",
-            mode="filled",
-            size_hint_x=1,
-            size_hint_y=None,
-            height=dp(40),
-            theme_bg_color="Custom",
-            fill_color_normal=(*RGBA_SURFACE[:3], 1),
-            fill_color_focus=(*RGBA_SURFACE[:3], 1),
-            theme_line_color="Custom",
-            line_color_normal=(0, 0, 0, 0),
-            line_color_focus=(0, 0, 0, 0),
-        )
-        self._field_refs[key] = tf
-        _style_mdtf(tf, _WHITE, opt_placeholder=optional_field)
-        row.add_widget(tf)
+        row, _ = self._meta_row_base(label)
+        ti = self._meta_ti(value, optional=optional_field, numeric=numeric)
+        self._field_refs[key] = ti
+        row.add_widget(ti)
+        if unit_suffix:
+            row.add_widget(self._meta_unit_lbl(unit_suffix))
         parent.add_widget(row)
 
     def _add_barcode_row(self, parent: MDBoxLayout, value: str) -> None:
-        row = MDBoxLayout(
-            orientation="horizontal",
-            size_hint_y=None,
-            height=dp(46),
-            padding=[dp(12), dp(4), dp(4), dp(4)],
-            spacing=dp(4),
-        )
-        row.add_widget(
-            MDLabel(
-                text="Barcode",
-                size_hint_x=None,
-                width=dp(132),
-                font_style="Body",
-                role="small",
-                font_size=card_font(),
-                theme_text_color="Custom",
-                text_color=_WHITE,
-                halign="left",
-                valign="middle",
-            )
-        )
-        t_bc = MDTextField(
-            text=value,
-            mode="filled",
-            size_hint_x=1,
-            size_hint_y=None,
-            height=dp(40),
-            theme_bg_color="Custom",
-            fill_color_normal=(*RGBA_SURFACE[:3], 1),
-            fill_color_focus=(*RGBA_SURFACE[:3], 1),
-            theme_line_color="Custom",
-            line_color_normal=(0, 0, 0, 0),
-            line_color_focus=(0, 0, 0, 0),
-        )
+        row, _ = self._meta_row_base("Barcode")
+        t_bc = self._meta_ti(value, optional=True)
         self._field_refs["barcode"] = t_bc
-        _style_mdtf(t_bc, _WHITE, opt_placeholder=True)
         row.add_widget(t_bc)
         row.add_widget(
             MDIconButton(
                 icon="barcode-scan",
                 theme_icon_color="Custom",
                 icon_color=(1.0, 1.0, 1.0, 1.0),
+                size_hint_x=None,
+                width=dp(48),
                 on_release=lambda *_: self._on_barcode_icon(),
             )
         )
@@ -538,6 +516,7 @@ class FoodEditScreen(BaseScreen):
             orientation="horizontal",
             size_hint_y=None,
             height=dp(48),
+            spacing=dp(6),
         )
 
         lbl = MDLabel(
@@ -594,20 +573,24 @@ class FoodEditScreen(BaseScreen):
         unit_lbl = MDLabel(
             text=unit_suffix.strip(),
             size_hint_x=None,
-            width=0,                # set by binding below once row width is known
+            width=dp(36),   # initial render needs non-zero width; shrinks after texture fires
             font_style="Body",
             role="small",
             font_size=card_font(),
             theme_text_color="Custom",
             text_color=_HINT,
-            halign="right",
+            halign="left",
             valign="middle",
         )
-        unit_lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
+        # text_size=self.size lets halign/valign work correctly.
+        # texture_size then reports the actual rendered text width so we can
+        # shrink the column to fit — "g" becomes narrow, "kcal" stays wider.
+        # Starting at dp(36) (not 0) avoids the zero-width render deadlock.
+        unit_lbl.bind(
+            size=lambda w, s: setattr(w, "text_size", s),
+            texture_size=lambda w, ts: setattr(w, "width", ts[0]) if ts[0] > 0 else None,
+        )
         row.add_widget(unit_lbl)
-        # Keep unit column at exactly 15 % of the row width so "g" and "kcal"
-        # always occupy the same space and align to the same right edge.
-        row.bind(width=lambda inst, w: setattr(unit_lbl, "width", w * 0.15))
         parent.add_widget(row)
 
 Builder.load_file("assets/kv/food_edit.kv")

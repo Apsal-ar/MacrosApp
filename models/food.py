@@ -24,6 +24,7 @@ class NutritionInfo:
         fat_trans_g: Trans fatty acids, grams per 100g (optional).
         fat_polyunsaturated_g: Polyunsaturated fatty acids, grams per 100g (optional).
         fat_monounsaturated_g: Monounsaturated fatty acids, grams per 100g (optional).
+        salt_mg: Salt (sodium chloride) in milligrams per 100g (optional).
     """
 
     calories: float = 0.0
@@ -36,6 +37,7 @@ class NutritionInfo:
     fat_trans_g: Optional[float] = None
     fat_polyunsaturated_g: Optional[float] = None
     fat_monounsaturated_g: Optional[float] = None
+    salt_mg: Optional[float] = None
 
     def scale(self, quantity_g: float) -> "NutritionInfo":
         """Return a new NutritionInfo scaled to quantity_g from the 100g base.
@@ -64,6 +66,7 @@ class NutritionInfo:
             fat_monounsaturated_g=self.fat_monounsaturated_g * factor
             if self.fat_monounsaturated_g is not None
             else None,
+            salt_mg=self.salt_mg * factor if self.salt_mg is not None else None,
         )
 
 

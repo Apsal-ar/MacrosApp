@@ -36,6 +36,7 @@ def _food_payload_to_join(fd: Dict[str, Any]) -> Dict[str, Any]:
         "fat_g": fd.get("fat_g"),
         "fiber_g": fd.get("fiber_g"),
         "sugar_g": fd.get("sugar_g"),
+        "salt": fd.get("salt"),
     }
 
 
@@ -287,6 +288,21 @@ class FoodRepository(Repository):
         ]
         return filtered[:limit]
 
+    def find_by_name(self, name: str, profile_id: str) -> Optional[Food]:
+        """Return the first food owned by ``profile_id`` whose name matches case-insensitively."""
+        cache = Repository._cache
+        if cache is None:
+            return None
+        target = name.strip().lower()
+        if not target:
+            return None
+        for row in cache.get_all_food_payloads():
+            if row.get("created_by") != profile_id:
+                continue
+            if (row.get("name") or "").strip().lower() == target:
+                return self._row_to_food(row)
+        return None
+
     def get_manual_foods(self, profile_id: str) -> List[Food]:
         """Return all foods owned by the user (My Foods: any source with ``created_by``)."""
         cache = Repository._cache
@@ -353,6 +369,7 @@ class FoodRepository(Repository):
             "fat_monounsaturated": n.fat_monounsaturated_g if n else None,
             "fiber_g": n.fiber_g if n else None,
             "sugar_g": n.sugar_g if n else None,
+            "salt": n.salt_mg if n else None,
             "serving_size": f.serving_size_g,
             "created_by": f.created_by,
             "updated_at": f.updated_at or time.time(),
@@ -379,6 +396,7 @@ class FoodRepository(Repository):
             fat_trans_g=_g("fat_trans", "fat_trans_g"),
             fat_polyunsaturated_g=_g("fat_polyunsaturated", "fat_polyunsaturated_g"),
             fat_monounsaturated_g=_g("fat_monounsaturated", "fat_monounsaturated_g"),
+            salt_mg=_g("salt", "salt_mg"),
         )
         serving = row.get("serving_size")
         if serving is None:
@@ -555,6 +573,7 @@ class MealItemRepository(Repository):
             fat_g=food_data.get("fat_g") or 0.0,
             fiber_g=food_data.get("fiber_g"),
             sugar_g=food_data.get("sugar_g"),
+            salt_mg=food_data.get("salt") or food_data.get("salt_mg"),
         )
         return MealItem(
             id=row["id"],
@@ -680,6 +699,7 @@ class RecipeRepository(Repository):
                 fat_g=food_data.get("fat_g") or 0.0,
                 fiber_g=food_data.get("fiber_g"),
                 sugar_g=food_data.get("sugar_g"),
+                salt_mg=food_data.get("salt") or food_data.get("salt_mg"),
             ),
         )
 

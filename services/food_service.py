@@ -131,6 +131,39 @@ class FoodService:
         self._repo.save(food)
         return food
 
+    def save_food_dedup(self, food: Food, profile_id: str) -> Food:
+        """Save food, overwriting any existing entry with the same name (case-insensitive).
+
+        If a food owned by ``profile_id`` already has the same stripped, lower-cased
+        name, the incoming data is written to that existing row (same UUID) so there
+        is never more than one entry per name per user.
+
+        Always attempts an immediate Supabase upsert so the remote ``foods`` table is
+        updated without waiting for the background sync flush.
+        """
+        existing = self._repo.find_by_name(food.name or "", profile_id)
+        if existing and existing.id != food.id:
+            food = replace(food, id=existing.id)
+
+        if not food.id:
+            food = replace(food, id=str(uuid.uuid4()))
+        food = replace(food, created_by=profile_id, updated_at=time.time())
+
+        self._repo.save(food)
+
+        client = Repository._supabase
+        cache = Repository._cache
+        if client is not None:
+            payload = self._repo._food_to_dict(food)
+            try:
+                client.table("foods").upsert(payload).execute()
+                if cache is not None:
+                    cache.mark_synced("foods", food.id)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("Supabase foods upsert failed: %s", exc)
+
+        return food
+
     def save_food_on_add_to_my_foods(self, food: Food, profile_id: str) -> bool:
         """Write to SQLite immediately, then upsert Supabase ``foods``; mark synced on HTTP OK.
 
