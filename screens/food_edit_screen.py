@@ -240,15 +240,17 @@ class FoodEditScreen(BaseScreen):
     def _read_nutrition_from_fields(self) -> NutritionInfo:
         def f(key: str, default: float = 0.0) -> float:
             w = self._field_refs.get(key)
-            if not w or not (w.text or "").strip():
+            t = (getattr(w, "text", "") or "").strip()
+            if not t:
                 return default
-            return float(w.text.strip())
+            try:
+                return float(t)
+            except ValueError:
+                return default
 
         def fo(key: str) -> Optional[float]:
             w = self._field_refs.get(key)
-            if not w:
-                return None
-            t = (w.text or "").strip()
+            t = (getattr(w, "text", "") or "").strip()
             if not t:
                 return None
             try:
@@ -540,7 +542,7 @@ class FoodEditScreen(BaseScreen):
 
         lbl = MDLabel(
             text=label,
-            size_hint_x=0.5,
+            size_hint_x=0.55,
             font_style="Body",
             role="small",
             font_size=card_font(),
@@ -552,41 +554,28 @@ class FoodEditScreen(BaseScreen):
         lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
         row.add_widget(lbl)
 
-        vtxt = ""
-        is_opt_placeholder = False
-
+        # Build number-only initial text
         if calories_mode:
             vtxt = "" if value is None else f"{value:.0f}"
         elif optional:
             if value is None:
                 vtxt = ""
-                is_opt_placeholder = True
             else:
                 formatted = f"{value:.{decimals}f}"
-                try:
-                    if abs(float(formatted)) < 1e-9:
-                        vtxt = ""
-                        is_opt_placeholder = True
-                    else:
-                        vtxt = formatted
-                except ValueError:
-                    vtxt = formatted
-        elif value is None:
-            vtxt = f"{0.0:.{decimals}f}"
+                vtxt = "" if abs(float(formatted)) < 1e-9 else formatted
         else:
-            vtxt = f"{value:.{decimals}f}"
-
+            v = value if value is not None else 0.0
+            vtxt = f"{v:.0f}" if calories_mode else f"{v:.{decimals}f}"
         if vtxt and vtxt.startswith("."):
             vtxt = f"0{vtxt}"
 
         _teal = list(RGBA_PRIMARY[:3]) + [1.0]
         ti = TextInput(
             text=vtxt,
-            size_hint_x=0.4,
+            size_hint_x=1,          # fills all space left after the fixed-width unit label
             multiline=False,
             input_filter="float",
             halign="right",
-            padding=[0, 12, 0, 0],
             background_normal="",
             background_active="",
             background_color=(0, 0, 0, 0),
@@ -595,25 +584,30 @@ class FoodEditScreen(BaseScreen):
             cursor_width=dp(2),
             selection_color=list(RGBA_PRIMARY[:3]) + [0.25],
             font_size=card_font(),
-            hint_text="Optional" if is_opt_placeholder else "",
+            hint_text="Optional" if optional else "",
             hint_text_color=list(_HINT),
         )
+        ti.bind(height=lambda w, h: setattr(w, "padding", [0, h * 0.25, 0, 0]))
         self._field_refs[key] = ti
         row.add_widget(ti)
 
         unit_lbl = MDLabel(
             text=unit_suffix.strip(),
-            size_hint_x=0.1,
+            size_hint_x=None,
+            width=0,                # set by binding below once row width is known
             font_style="Body",
             role="small",
             font_size=card_font(),
             theme_text_color="Custom",
             text_color=_HINT,
-            halign="left",
+            halign="right",
             valign="middle",
         )
         unit_lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
         row.add_widget(unit_lbl)
+        # Keep unit column at exactly 15 % of the row width so "g" and "kcal"
+        # always occupy the same space and align to the same right edge.
+        row.bind(width=lambda inst, w: setattr(unit_lbl, "width", w * 0.15))
         parent.add_widget(row)
 
 Builder.load_file("assets/kv/food_edit.kv")
