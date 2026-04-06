@@ -17,7 +17,8 @@ from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.graphics import Color, RoundedRectangle
 from kivy.lang import Builder
-from kivy.metrics import dp
+from kivy.metrics import dp, sp
+from kivy.uix.textinput import TextInput
 from kivy.properties import BooleanProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
@@ -626,20 +627,42 @@ _KV = """
                     size_hint_y: None
                     height: self.minimum_height
                     radius: [dp(12)]
-                    padding: ["16dp", "12dp", "16dp", "12dp"]
+                    padding: ["16dp", "0dp", "16dp", "0dp"]
+                    md_bg_color: 0.094, 0.098, 0.102, 1
 
-                    MDListItem:
-                        theme_bg_color: "Custom"
-                        md_bg_color: 0, 0, 0, 0
-                        on_release: root.open_meals_per_day_picker()
-                        MDListItemHeadlineText:
+                    BoxLayout:
+                        orientation: "horizontal"
+                        size_hint_y: None
+                        height: "48dp"
+                        spacing: dp(6)
+
+                        MDLabel:
                             text: "Meals per day"
-                        MDListItemTrailingSupportingText:
+                            size_hint_x: 0.55
+                            font_style: "Body"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.92, 0.93, 0.95, 1
+                            halign: "left"
+                            valign: "middle"
+
+                        TextInput:
                             id: meals_per_day_value
                             text: "3"
-                            theme_text_color: "Custom"
-                            text_color: app.theme_cls.primaryColor
+                            size_hint_x: 1
+                            multiline: False
+                            input_filter: "int"
                             halign: "right"
+                            background_normal: ""
+                            background_active: ""
+                            background_color: 0, 0, 0, 0
+                            foreground_color: 0.92, 0.93, 0.95, 1
+                            cursor_color: 0, 0.588, 0.533, 1
+                            cursor_width: dp(2)
+                            font_size: "13sp"
+                            hint_text: "1–10"
+                            hint_text_color: 0.55, 0.58, 0.62, 1
+                            padding: [0, dp(12), 0, dp(12)]
 
                 MDLabel:
                     text: "Meals names"
@@ -655,8 +678,9 @@ _KV = """
                     size_hint_y: None
                     height: self.minimum_height
                     radius: [dp(12)]
-                    padding: "0dp"
+                    padding: ["16dp", "0dp", "16dp", "0dp"]
                     elevation: 0
+                    md_bg_color: 0.094, 0.098, 0.102, 1
 
         MDBoxLayout:
             size_hint_y: None
@@ -1847,13 +1871,16 @@ class BMISheet(ModalView):
 class MealsSheet(ModalView):
     """Full-screen sheet to configure meals per day and meal names."""
 
+    _WHITE = [0.92, 0.93, 0.95, 1]
+    _HINT  = [0.55, 0.58, 0.62, 1]
+    _TEAL  = [0.0, 0.588, 0.533, 1.0]
+
     def __init__(self, profile_screen: ProfileScreen, **kwargs: Any) -> None:
         super().__init__(size_hint=(1, 1), **kwargs)
         self._ps = profile_screen
         self._meals_per_day: int = 3
         self._meal_labels: Dict[int, str] = {}
-        self._meal_fields: Dict[int, MDTextField] = {}
-        self._meals_picker: Optional[MealsPerDayPickerSheet] = None
+        self._meal_fields: Dict[int, TextInput] = {}
 
     def populate(self) -> None:
         """Load current goals and build the form."""
@@ -1872,6 +1899,19 @@ class MealsSheet(ModalView):
         self._sync_meal_labels_to_count()
         self.ids.meals_per_day_value.text = str(self._meals_per_day)
         self._build_meal_name_rows()
+        # Rebuild name rows live as the user types a new count
+        self.ids.meals_per_day_value.bind(text=self._on_count_text_changed)
+
+    def _on_count_text_changed(self, _inst: object, text: str) -> None:
+        """Called on every keystroke in the meals-per-day field."""
+        try:
+            n = max(1, min(10, int(text)))
+        except (ValueError, TypeError):
+            return
+        if n != self._meals_per_day:
+            self._meals_per_day = n
+            self._sync_meal_labels_to_count()
+            self._build_meal_name_rows()
 
     def _sync_meal_labels_to_count(self) -> None:
         """Ensure _meal_labels has entries 1..N; fill gaps from DEFAULT_MEAL_LABELS."""
@@ -1879,53 +1919,58 @@ class MealsSheet(ModalView):
         for i in range(1, self._meals_per_day + 1):
             if i not in self._meal_labels:
                 self._meal_labels[i] = defaults.get(i, f"Meal {i}")
-        # Drop entries beyond current count
         to_drop = [k for k in self._meal_labels if k > self._meals_per_day]
         for k in to_drop:
             del self._meal_labels[k]
 
-    def open_meals_per_day_picker(self) -> None:
-        """Open the carousel picker for meals per day (1–10)."""
-        if self._meals_picker is None:
-            self._meals_picker = MealsPerDayPickerSheet(
-                initial=self._meals_per_day,
-                callback=self.set_meals_per_day,
-            )
-        else:
-            self._meals_picker.update_value(self._meals_per_day)
-        self._meals_picker.open()
-
-    def set_meals_per_day(self, n: int) -> None:
-        """Update meals per day and rebuild name rows."""
-        self._meals_per_day = max(1, min(10, n))
-        self._sync_meal_labels_to_count()
-        self.ids.meals_per_day_value.text = str(self._meals_per_day)
-        self._build_meal_name_rows()
-
     def _build_meal_name_rows(self) -> None:
-        """Populate meal_names_container with editable rows."""
+        """Populate meal_names_container with food-edit-screen style rows."""
         container = self.ids.meal_names_container
+        # Snapshot current field values before clearing
+        for i, field in self._meal_fields.items():
+            v = (field.text or "").strip()
+            if v:
+                self._meal_labels[i] = v
         container.clear_widgets()
         self._meal_fields.clear()
 
         for i in range(1, self._meals_per_day + 1):
-            row = MDBoxLayout(
+            row = BoxLayout(
                 orientation="horizontal",
                 size_hint_y=None,
-                height=dp(56),
-                padding=["16dp", "8dp", "16dp", "8dp"],
+                height=dp(48),
+                spacing=dp(6),
             )
-            row.add_widget(MDLabel(
+            lbl = MDLabel(
                 text=f"Meal {i}",
-                size_hint_x=0.3,
+                size_hint_x=0.55,
+                font_style="Body",
+                role="small",
+                theme_text_color="Custom",
+                text_color=self._WHITE,
                 halign="left",
-            ))
-            field = MDTextField(
-                hint_text=DEFAULT_MEAL_LABELS.get(i, f"Meal {i}"),
-                text=self._meal_labels.get(i, ""),
-                size_hint_x=0.7,
-                mode="filled",
+                valign="middle",
             )
+            lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
+            row.add_widget(lbl)
+
+            field = TextInput(
+                text=self._meal_labels.get(i, ""),
+                size_hint_x=1,
+                multiline=False,
+                halign="right",
+                background_normal="",
+                background_active="",
+                background_color=(0, 0, 0, 0),
+                foreground_color=self._WHITE,
+                cursor_color=self._TEAL,
+                cursor_width=dp(2),
+                selection_color=[0.0, 0.588, 0.533, 0.25],
+                font_size=sp(13),
+                hint_text=DEFAULT_MEAL_LABELS.get(i, f"Meal {i}"),
+                hint_text_color=self._HINT,
+            )
+            field.bind(height=lambda w, h: setattr(w, "padding", [0, h * 0.25, 0, 0]))
             self._meal_fields[i] = field
             row.add_widget(field)
             container.add_widget(row)
@@ -1935,7 +1980,15 @@ class MealsSheet(ModalView):
                 )
 
     def _save_and_dismiss(self) -> None:
-        """Collect values, save to goals, dismiss."""
+        """Collect values, validate count, save to goals, dismiss."""
+        # Read confirmed meals-per-day from the text field
+        try:
+            n = max(1, min(10, int(self.ids.meals_per_day_value.text or "3")))
+        except (ValueError, TypeError):
+            n = self._meals_per_day
+        self._meals_per_day = n
+        self._sync_meal_labels_to_count()
+
         for i, field in self._meal_fields.items():
             name = (field.text or "").strip()
             self._meal_labels[i] = name or DEFAULT_MEAL_LABELS.get(i, f"Meal {i}")

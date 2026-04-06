@@ -17,6 +17,7 @@ class FoodItemTapArea(ButtonBehavior, MDBoxLayout):
 
 
 Builder.load_string("""
+#:import dp kivy.metrics.dp
 <FoodItemTapArea>:
     orientation: "horizontal"
     size_hint_x: 1
@@ -24,39 +25,36 @@ Builder.load_string("""
 
 <FoodItemRow>:
     size_hint_y: None
-    height: "60dp"
-    padding: ["8dp", "4dp", "4dp", "4dp"]
-    spacing: "8dp"
+    height: self.minimum_height
+    padding: ["8dp", "3dp", "8dp", "3dp"]
 
     FoodItemTapArea:
         size_hint_x: 1
+        size_hint_y: None
+        height: self.minimum_height
         on_release: root.dispatch("on_edit", root.item_id)
 
         MDBoxLayout:
             orientation: "vertical"
             size_hint_x: 1
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: "0dp"
 
             MDLabel:
                 text: root.food_name
-                font_style: "Body"
-                role: "medium"
+                font_size: "10sp"
+                size_hint_y: None
+                height: self.texture_size[1]
                 shorten: True
                 shorten_from: "right"
 
             MDLabel:
                 text: f"{root.quantity_g:.0f}g  •  {root.calories:.0f} kcal  •  P:{root.protein_g:.1f}  C:{root.carbs_g:.1f}  F:{root.fat_g:.1f}"
-                font_style: "Body"
-                role: "small"
+                font_size: "10sp"
+                size_hint_y: None
+                height: self.texture_size[1]
                 theme_text_color: "Secondary"
-
-    MDIconButton:
-        icon: "delete-outline"
-        size_hint: None, None
-        size: "40dp", "40dp"
-        pos_hint: {"center_y": 0.5}
-        theme_icon_color: "Custom"
-        icon_color: app.theme_cls.errorColor
-        on_release: root.dispatch("on_delete", root.item_id)
 """)
 
 

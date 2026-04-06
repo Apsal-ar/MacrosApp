@@ -14,13 +14,38 @@ from typing import List
 
 from kivy.lang import Builder
 from kivy.properties import NumericProperty, ObjectProperty, StringProperty
+from kivy.uix.behaviors import ButtonBehavior
+from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
 
 from models.meal import Meal, MealItem
 from widgets.food_item_row import FoodItemRow
-import widgets.macros_button  # noqa: F401 — registers Macros*Button for MealCard KV
+
+
+class _AddFoodBtn(ButtonBehavior, MDBoxLayout):
+    """Borderless, shadowless 'Add food' button that blends into the card surface."""
 
 Builder.load_string("""
+#:import RGBA_PRIMARY utils.constants.RGBA_PRIMARY
+#:import RGBA_PROTEIN utils.constants.RGBA_PROTEIN
+#:import RGBA_CARBS utils.constants.RGBA_CARBS
+#:import RGBA_FAT utils.constants.RGBA_FAT
+#:import dp kivy.metrics.dp
+
+<_AddFoodBtn>:
+    size_hint_y: None
+    height: "36dp"
+
+    MDLabel:
+        text: "[size=15sp]+[/size]  Add food"
+        markup: True
+        bold: True
+        font_size: "12sp"
+        halign: "center"
+        valign: "middle"
+        theme_text_color: "Custom"
+        text_color: RGBA_PRIMARY[:4]
+
 <MealCard>:
     orientation: "vertical"
     size_hint_y: None
@@ -29,11 +54,13 @@ Builder.load_string("""
     spacing: "4dp"
     radius: [dp(12)]
     elevation: 1
+    ripple_behavior: False
+    focus_behavior: False
 
+    # Meal name header
     MDBoxLayout:
         size_hint_y: None
-        height: "48dp"
-        spacing: "8dp"
+        height: "36dp"
 
         MDLabel:
             id: label_display
@@ -48,16 +75,6 @@ Builder.load_string("""
             shorten: True
             shorten_from: "right"
 
-        MDLabel:
-            id: totals_label
-            text: root._totals_text
-            font_style: "Body"
-            role: "small"
-            theme_text_color: "Secondary"
-            size_hint_x: None
-            width: "160dp"
-            halign: "right"
-
     MDDivider:
         theme_divider_color: "Custom"
         color: "#94A09F"
@@ -68,19 +85,107 @@ Builder.load_string("""
         size_hint_y: None
         height: self.minimum_height
 
+    # 4-column macro summary: Calories | Protein | Carbs | Fat
     MDBoxLayout:
         size_hint_y: None
-        height: "48dp"
+        height: self.minimum_height
+        spacing: "4dp"
+        padding: ["2dp", "2dp", "2dp", "2dp"]
 
-        MacrosFilledButton:
-            size_hint_x: 1
-            on_release: root.dispatch("on_add_food", root.meal_id)
+        MDBoxLayout:
+            orientation: "vertical"
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: "0dp"
+            MDLabel:
+                text: root._cal_summary
+                bold: True
+                font_size: "10sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_PRIMARY[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+            MDLabel:
+                text: "kcal"
+                font_size: "9sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_PRIMARY[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
 
-            MDButtonIcon:
-                icon: "plus"
+        MDBoxLayout:
+            orientation: "vertical"
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: "0dp"
+            MDLabel:
+                text: root._pro_summary
+                bold: True
+                font_size: "10sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_PROTEIN[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+            MDLabel:
+                text: "protein"
+                font_size: "9sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_PROTEIN[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
 
-            MDButtonText:
-                text: "Add Food"
+        MDBoxLayout:
+            orientation: "vertical"
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: "0dp"
+            MDLabel:
+                text: root._carb_summary
+                bold: True
+                font_size: "10sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_CARBS[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+            MDLabel:
+                text: "carbs"
+                font_size: "9sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_CARBS[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+
+        MDBoxLayout:
+            orientation: "vertical"
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: "0dp"
+            MDLabel:
+                text: root._fat_summary
+                bold: True
+                font_size: "10sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_FAT[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+            MDLabel:
+                text: "fat"
+                font_size: "9sp"
+                theme_text_color: "Custom"
+                text_color: RGBA_FAT[:4]
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+
+    _AddFoodBtn:
+        on_release: root.dispatch("on_add_food", root.meal_id)
 """)
 
 
@@ -105,16 +210,38 @@ class MealCard(MDCard):
     _fat_total = NumericProperty(0.0)
     _calories_total = NumericProperty(0.0)
 
+    # Per-meal targets (daily goal / meals_per_day); set by TrackerScreen after load
+    _target_calories = NumericProperty(0.0)
+    _target_protein = NumericProperty(0.0)
+    _target_carbs = NumericProperty(0.0)
+    _target_fat = NumericProperty(0.0)
+
+    # Reactive summary strings bound to the KV labels
+    _cal_summary = StringProperty("0")
+    _pro_summary = StringProperty("0")
+    _carb_summary = StringProperty("0")
+    _fat_summary = StringProperty("0")
+
     __events__ = ("on_add_food", "on_delete_item", "on_edit_item")
 
-    @property
-    def _totals_text(self) -> str:
-        return (
-            f"{self._calories_total:.0f} kcal  "
-            f"P:{self._protein_total:.0f}  "
-            f"C:{self._carbs_total:.0f}  "
-            f"F:{self._fat_total:.0f}"
-        )
+    def set_targets(self, cal: float, protein: float, carbs: float, fat: float) -> None:
+        """Set per-meal targets and refresh the summary labels."""
+        self._target_calories = cal
+        self._target_protein = protein
+        self._target_carbs = carbs
+        self._target_fat = fat
+        self._update_summaries()
+
+    @staticmethod
+    def _fmt_summary(actual: float, target: float) -> str:
+        a = f"{actual:.0f}"
+        return f"{a} / {target:.0f}" if target > 0 else a
+
+    def _update_summaries(self) -> None:
+        self._cal_summary = self._fmt_summary(self._calories_total, self._target_calories)
+        self._pro_summary = self._fmt_summary(self._protein_total, self._target_protein)
+        self._carb_summary = self._fmt_summary(self._carbs_total, self._target_carbs)
+        self._fat_summary = self._fmt_summary(self._fat_total, self._target_fat)
 
     # ------------------------------------------------------------------
     # Public API
@@ -139,12 +266,12 @@ class MealCard(MDCard):
         """
         row = self._make_row(item)
         self.ids.items_container.add_widget(row)
-        # Recalculate totals incrementally
         s = item.scaled_nutrition
         self._calories_total += s.calories
         self._protein_total += s.protein_g
         self._carbs_total += s.carbs_g
         self._fat_total += s.fat_g
+        self._update_summaries()
 
     def remove_item(self, item_id: str) -> None:
         """Remove the row with matching item_id from the card.
@@ -206,6 +333,7 @@ class MealCard(MDCard):
         self._protein_total = sum(i.scaled_nutrition.protein_g for i in items)
         self._carbs_total = sum(i.scaled_nutrition.carbs_g for i in items)
         self._fat_total = sum(i.scaled_nutrition.fat_g for i in items)
+        self._update_summaries()
 
     def _resum_totals(self, container: object) -> None:
         rows = [w for w in container.children if isinstance(w, FoodItemRow)]
@@ -213,6 +341,7 @@ class MealCard(MDCard):
         self._protein_total = sum(r.protein_g for r in rows)
         self._carbs_total = sum(r.carbs_g for r in rows)
         self._fat_total = sum(r.fat_g for r in rows)
+        self._update_summaries()
 
     # ------------------------------------------------------------------
     # Default event handlers

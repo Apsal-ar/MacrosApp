@@ -163,6 +163,12 @@ class TrackerScreen(BaseScreen):
         goals_repo = self.get_repo(GoalsRepository)
         goals = goals_repo.get_for_profile(user_id)
         meal_labels = goals.meal_labels if goals and goals.meal_labels else {}
+        mpd = max(1, self._meals_per_day)
+        cal_target = self._goals_calorie / mpd
+        pro_target = self._goals_protein / mpd
+        carb_target = self._goals_carbs / mpd
+        fat_target = self._goals_fat / mpd
+
         for meal_number in range(1, self._meals_per_day + 1):
             label = meal_labels.get(
                 meal_number,
@@ -179,6 +185,7 @@ class TrackerScreen(BaseScreen):
                 on_edit_item=self._on_edit_item,
             )
             card.load_meal(meal)
+            card.set_targets(cal_target, pro_target, carb_target, fat_target)
             self._meal_cards[meal.id] = card
             self.ids.meals_container.add_widget(card)
 
