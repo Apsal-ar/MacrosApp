@@ -59,21 +59,11 @@ class SettingsScreen(BaseScreen):
 
     def _refresh_all(self, dt: float) -> None:  # noqa: ARG002
         self._refresh_unit_toggle()
-        self._refresh_my_foods()
         self._refresh_sync_status()
 
     def _refresh_unit_toggle(self) -> None:
         unit = self.get_unit_system()
         self.ids.unit_switch.active = (unit == "imperial")
-
-    def _refresh_my_foods(self) -> None:
-        user_id = self.get_current_user_id()
-        if not user_id:
-            return
-        foods: List[Food] = self._food_service.get_manual_foods(user_id)
-        self.ids.my_foods_list.clear_widgets()
-        for food in foods:
-            self._add_food_list_item(food)
 
     def _refresh_sync_status(self) -> None:
         connected = Repository._supabase is not None
@@ -104,45 +94,18 @@ class SettingsScreen(BaseScreen):
     # My Foods
     # ------------------------------------------------------------------
 
-    def _add_food_list_item(self, food: Food) -> None:
-        """Append a swipeable list item for a manual food.
-
-        Args:
-            food: The Food dataclass to display.
-        """
-        from kivymd.uix.list import MDListItem, MDListItemHeadlineText, MDListItemSupportingText  # noqa: PLC0415
-        item = MDListItem(on_release=lambda _, f=food: self._edit_food(f))
-        item.add_widget(MDListItemHeadlineText(text=food.name))
-        item.add_widget(
-            MDListItemSupportingText(
-                text=(
-                    f"{food.nutrition.calories:.0f} kcal  "
-                    f"P:{food.nutrition.protein_g:.1f}  "
-                    f"C:{food.nutrition.carbs_g:.1f}  "
-                    f"F:{food.nutrition.fat_g:.1f}"
-                )
-            )
-        )
-        self.ids.my_foods_list.add_widget(item)
-
-    def _edit_food(self, food: Food) -> None:
-        """Open the food search dialog pre-filled for editing.
-
-        Args:
-            food: The manual food to edit.
-        """
-        # TODO: open an edit-specific dialog; for now show success placeholder
-        self.show_success(f"Edit '{food.name}' — coming in next iteration")
-
-    def delete_food(self, food_id: str) -> None:
-        """Delete a manual food and refresh the list.
-
-        Args:
-            food_id: UUID of the food to remove.
-        """
-        self._food_service.delete_manual_food(food_id)
-        self._refresh_my_foods()
-        self.show_success("Food deleted")
+    def open_my_foods(self) -> None:
+        """Navigate to the food search screen with the My Foods tab active."""
+        try:
+            app = MDApp.get_running_app()
+            shell = app.root.get_screen("app")
+            sm = shell.ids.inner_sm
+            search = sm.get_screen("food_search")
+            search.open_from_settings()
+            sm.current = "food_search"
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("open_my_foods: %s", exc)
+            self.show_error("Could not open My Foods.")
 
     # ------------------------------------------------------------------
     # Sync

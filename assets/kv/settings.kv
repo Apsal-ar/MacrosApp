@@ -42,19 +42,14 @@
                 MDDivider:
 
                 # ── My Foods ───────────────────────────────────────────
-                MDLabel:
-                    text: "My Foods"
-                    font_style: "Title"
-                    role: "small"
-                    padding: ["16dp", "12dp"]
-                    size_hint_y: None
-                    height: "44dp"
+                MDListItem:
+                    on_release: root.open_my_foods()
 
-                MDBoxLayout:
-                    id: my_foods_list
-                    orientation: "vertical"
-                    size_hint_y: None
-                    height: self.minimum_height
+                    MDListItemHeadlineText:
+                        text: "My Foods"
+
+                    MDListItemTrailingIcon:
+                        icon: "chevron-right"
 
                 MDDivider:
 

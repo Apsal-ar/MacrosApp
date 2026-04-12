@@ -68,6 +68,13 @@ Builder.load_string("""
     color: RGBA_LINE[:4]
 """)
 
+# Global card default: 12dp corner radius on all MDCards
+Builder.load_string("""
+#:import dp kivy.metrics.dp
+<MDCard>:
+    radius: [dp(12), dp(12), dp(12), dp(12)]
+""")
+
 # ---------------------------------------------------------------------------
 # Login screen (inline KV)
 # ---------------------------------------------------------------------------

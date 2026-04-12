@@ -140,6 +140,7 @@ class FoodSearchScreen(BaseScreen):
         self._search_event: Optional[object] = None
         self._barcode_scan_targets_edit: bool = False
         self._skip_reset_once: bool = False
+        self._return_screen: str = "tracker"
         # Pending add after returning from FoodEditScreen
         self._pending_edit_food_id: Optional[str] = None
         self._pending_edit_qty: Optional[float] = None
@@ -211,10 +212,28 @@ class FoodSearchScreen(BaseScreen):
         self._update_tab_styles()
         Clock.schedule_once(lambda _dt: self._run_search(""), 0)
 
+    def open_from_settings(self) -> None:
+        """Prepare the screen for browsing from Settings (no meal context)."""
+        self._return_screen = "settings"
+        self.meal_id = ""
+        self._skip_reset_once = False
+        # Switch to My Foods tab once the screen has entered
+        Clock.schedule_once(lambda _dt: self.set_tab(0), 0.05)
+
     def go_back(self) -> None:
-        """Return to Tracker without adding."""
+        """Return to the previous screen without adding."""
         self._stop_barcode_scan()
-        self._go_to_tracker()
+        self._go_back_nav()
+
+    def _go_back_nav(self) -> None:
+        target = self._return_screen or "tracker"
+        self._return_screen = "tracker"  # reset for next time
+        try:
+            app = MDApp.get_running_app()
+            shell = app.root.get_screen("app")
+            shell.ids.inner_sm.current = target
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("go_back_nav: %s", exc)
 
     def _go_to_tracker(self) -> None:
         try:
@@ -564,7 +583,7 @@ class FoodSearchScreen(BaseScreen):
             shell = app.root.get_screen("app")
             tracker = shell.ids.inner_sm.get_screen("tracker")
             tracker.add_food_from_search(self.meal_id, food, qty, display_name)
-            shell.ids.inner_sm.current = "tracker"
+            self._go_back_nav()
             self._reset_ui()
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("add food: %s", exc)
