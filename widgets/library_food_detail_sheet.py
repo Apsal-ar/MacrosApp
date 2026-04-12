@@ -329,7 +329,7 @@ class LibraryFoodDetailSheet(ModalView):
             size=(dp(120), dp(120)),
             pos_hint={"center_y": 0.5},
             md_bg_color=RGBA_BG,
-            radius=[dp(8), dp(8), dp(8), dp(8)],
+            radius=[dp(12), dp(12), dp(12), dp(12)],
             padding=[dp(4), dp(4), dp(4), dp(4)],
         )
         pie_box.add_widget(self._macro_chart)
@@ -540,7 +540,7 @@ class LibraryFoodDetailSheet(ModalView):
             orientation="vertical",
             spacing=0,
             md_bg_color=RGBA_BG,
-            radius=[dp(8), dp(8), dp(8), dp(8)],
+            radius=[dp(12), dp(12), dp(12), dp(12)],
             padding=[dp(8), dp(2), dp(8), dp(2)],
             size_hint_x=1,
             size_hint_y=None,

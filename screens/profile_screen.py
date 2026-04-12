@@ -733,62 +733,6 @@ _DRUM_KV = """
                     MDButtonText:
                         text: "Ok"
 
-# ── Bottom-anchored drum-roll height picker ───────────────────────────────
-<HeightPickerSheet>:
-    background: " "
-    background_color: 0, 0, 0, 0.55
-    auto_dismiss: True
-
-    FloatLayout:
-        size_hint: 1, 1
-
-        MDCard:
-            orientation: "vertical"
-            size_hint_x: 1
-            size_hint_y: None
-            height: "428dp"
-            pos_hint: {"x": 0, "y": 0}
-            radius: [dp(16), dp(16), 0, 0]
-            padding: "0dp"
-            elevation: 4
-            md_bg_color: app.theme_cls.surfaceContainerHighColor
-
-            # Title — equal height with buttons
-            MDLabel:
-                text: "Height"
-                size_hint_y: None
-                height: "60dp"
-                halign: "center"
-                valign: "center"
-                font_style: "Title"
-                bold: True
-
-            # Drum roll — fills remaining space, highlight centered
-            MDBoxLayout:
-                id: picker_slot
-                size_hint_y: 1
-                padding: ["0dp", "0dp", "0dp", "0dp"]
-
-            # Cancel / OK row — equal height to title, no gap, centered
-            MDBoxLayout:
-                size_hint_x: 1
-                size_hint_y: None
-                height: "60dp"
-                padding: ["24dp", "0dp", "24dp", "16dp"]
-                spacing: "12dp"
-                orientation: "horizontal"
-
-                MacrosTextButton:
-                    size_hint_x: 1
-                    on_release: root.dismiss()
-                    MDButtonText:
-                        text: "Cancel"
-
-                MacrosFilledButton:
-                    size_hint_x: 1
-                    on_release: root._confirm()
-                    MDButtonText:
-                        text: "Ok"
 """
 
 Builder.load_string(_KV)
@@ -1041,33 +985,6 @@ class DrumRollPicker(FloatLayout):
         """Jump to *value* instantly (no animation).  Safe to call at any time."""
         value = max(self._min, min(self._max, value))
         self._set_scroll(value, animate=False)
-
-
-# ---------------------------------------------------------------------------
-# HeightPickerSheet — bottom sheet wrapping DrumRollPicker
-# ---------------------------------------------------------------------------
-
-class HeightPickerSheet(ModalView):
-    """Bottom sheet containing a drum-roll height picker (80–250 cm)."""
-
-    def __init__(
-        self, initial: int, callback: Callable[[int], None], **kwargs: Any
-    ) -> None:
-        super().__init__(size_hint=(1, 1), **kwargs)
-        self._callback = callback
-        self._drum = DrumRollPicker(
-            min_val=80, max_val=250, initial=max(80, min(250, initial))
-        )
-        self.ids.picker_slot.add_widget(self._drum)
-
-    def update_value(self, value: int) -> None:
-        """Reposition the drum roll to *value* before reopening."""
-        self._drum.jump_to(max(80, min(250, value)))
-
-    def _confirm(self) -> None:
-        if self._callback:
-            self._callback(self._drum.value)
-        self.dismiss()
 
 
 # ---------------------------------------------------------------------------
@@ -1512,7 +1429,6 @@ class EditProfileSheet(ModalView):
         self._unit: str = "metric"
 
         # Cached pickers
-        self._height_sheet: Optional[HeightPickerSheet] = None
         self._gender_sheet: Optional[GenderSheet] = None
 
     # ------------------------------------------------------------------
@@ -1572,26 +1488,74 @@ class EditProfileSheet(ModalView):
             )
 
     # ------------------------------------------------------------------
-    # Height picker — drum-roll bottom sheet
+    # Height dialog (text input, 80–250 cm / 31–98 in)
     # ------------------------------------------------------------------
 
     def _open_height_picker(self) -> None:
-        current_cm = int(self._height_cm) if self._height_cm else 163
-        current_cm = max(80, min(250, current_cm))
-
-        if self._height_sheet is None:
-            self._height_sheet = HeightPickerSheet(
-                initial=current_cm,
-                callback=self._set_height_from_int,
+        unit = self._unit
+        if unit == "imperial":
+            hint = "inches  (31 – 98)"
+            prefill = (
+                str(round(self._height_cm / 2.54, 1))
+                if self._height_cm else ""
             )
         else:
-            self._height_sheet.update_value(current_cm)
+            hint = "cm  (80 – 250)"
+            prefill = (
+                str(int(round(self._height_cm)))
+                if self._height_cm else ""
+            )
 
-        self._height_sheet.open()
+        field = MDTextField(hint_text=hint, input_filter="float", text=prefill)
+        dlg_ref: list = []
 
-    def _set_height_from_int(self, value: int) -> None:
-        self._height_cm = float(value)
-        self._refresh_display()
+        def _apply(x: Any) -> None:
+            try:
+                v = float(field.text)
+                cm = round(v * 2.54, 1) if unit == "imperial" else v
+                if not 80.0 <= cm <= 250.0:
+                    field.error = True
+                    field.helper_text = "Must be 80–250 cm"
+                    field.helper_text_mode = "on_error"
+                    _show_range_popup(
+                        "Height",
+                        "Please enter a value between 80 and 250 cm.",
+                    )
+                    return
+                self._height_cm = cm
+                self._refresh_display()
+                if dlg_ref:
+                    dlg_ref[0].dismiss()
+            except ValueError:
+                field.error = True
+                field.helper_text = "Enter a valid number"
+                field.helper_text_mode = "on_error"
+                _show_range_popup(
+                    "Height",
+                    "Please enter a valid number.",
+                )
+
+        dlg = MDDialog(
+            MDDialogHeadlineText(text="Height"),
+            MDDialogContentContainer(
+                field,
+                orientation="vertical",
+                padding=[0, dp(4), 0, dp(4)],
+            ),
+            MDDialogButtonContainer(
+                Widget(),
+                MacrosTextButton(
+                    MDButtonText(text="Cancel"),
+                    on_release=lambda x: dlg_ref[0].dismiss() if dlg_ref else None,
+                ),
+                MacrosFilledButton(MDButtonText(text="Set"), on_release=_apply),
+                spacing="8dp",
+            ),
+            theme_bg_color="Custom",
+            md_bg_color=RGBA_POPUP,
+        )
+        dlg_ref.append(dlg)
+        dlg.open()
 
     # ------------------------------------------------------------------
     # Weight dialog (text input, 25–500 kg)
