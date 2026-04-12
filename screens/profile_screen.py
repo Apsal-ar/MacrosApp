@@ -706,7 +706,6 @@ _DRUM_KV = """
                 halign: "center"
                 valign: "center"
                 font_style: "Title"
-                bold: True
 
             MDBoxLayout:
                 id: picker_slot

@@ -9,11 +9,12 @@ Responsibilities:
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
 import threading
-from typing import Optional
+from typing import Any, Optional
 
 # Kivy must be configured before any other kivy imports
 os.environ.setdefault("KIVY_NO_ENV_CONFIG", "1")
@@ -21,6 +22,8 @@ os.environ.setdefault("KIVY_NO_ENV_CONFIG", "1")
 from kivy.clock import Clock                                    # noqa: E402
 from kivy.core.window import Window                             # noqa: E402
 from kivy.lang import Builder                                   # noqa: E402
+from kivy.properties import NumericProperty                     # noqa: E402
+from kivy.utils import platform as kivy_platform               # noqa: E402
 from kivy.uix.screenmanager import ScreenManager, SlideTransition  # noqa: E402
 from kivymd.app import MDApp                                    # noqa: E402
 from kivymd.uix.screen import MDScreen                          # noqa: E402
@@ -54,7 +57,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Simulate iPhone SE screen on desktop
+# Simulate iPhone SE screen on desktop (also the reference width for responsive text).
+UI_REF_WIDTH = 390.0
+# Width ratio is clamped to [UI_FONT_MIN_SCALE, UI_FONT_MAX_SCALE], then multiplied by
+# UI_FONT_BASE_FACTOR. Max below ~1.15 avoids the old 1.9× blow-up on wide windows; the
+# base factor dials overall size vs raw Material defaults (tracker, nav, profile KV, etc.).
+UI_FONT_MIN_SCALE = 0.68
+UI_FONT_MAX_SCALE = 1.08
+UI_FONT_BASE_FACTOR = 0.92
 Window.size = (390, 844)
 
 # Global divider style: thin, full-width, dark neutral colour
@@ -216,6 +226,11 @@ class MacroTrackerApp(MDApp):
     unit_system: str = "metric"
     version: str = config.APP_VERSION
 
+    #: Scales with window width on desktop; bound from KV as ``app.ui_font_scale``.
+    ui_font_scale = NumericProperty(1.0)
+
+    _theme_font_styles_base: Optional[dict[str, Any]] = None
+
     # Screen name → inner ScreenManager name mapping
     _TAB_SCREENS = ["tracker", "profile", "goals", "settings"]
 
@@ -263,8 +278,49 @@ class MacroTrackerApp(MDApp):
 
     def on_start(self) -> None:
         """Kivy lifecycle hook — auto-login for development when configured."""
+        self._setup_responsive_ui_scale()
         if config.DEV_AUTO_LOGIN:
             Clock.schedule_once(self._auto_login, 0.3)
+
+    def _setup_responsive_ui_scale(self) -> None:
+        """Scale typography with window width on desktop.
+
+        Kivy ``sp`` in properties does not track window size. KivyMD's theme
+        stores ``font-size`` as pixels from ``sp()`` at import time, so changing
+        :attr:`~kivy.metrics.Metrics.fontscale` does not resize Material text.
+
+        We snapshot :attr:`theme_cls.font_styles` once, then on each resize set
+        ``font-size`` to ``baseline * effective_scale``. The effective scale is
+        derived from window width (capped so wide screens are not enlarged past
+        the design baseline), then multiplied by :data:`UI_FONT_BASE_FACTOR`.
+        KV that uses ``app.ui_font_scale`` uses the same factor for custom sizes.
+        """
+        if kivy_platform not in ("macosx", "win", "linux"):
+            return
+        Window.bind(on_resize=self._apply_responsive_ui_scale)
+        Clock.schedule_once(self._apply_responsive_ui_scale, 0)
+
+    def _apply_responsive_ui_scale(self, *args) -> None:
+        if kivy_platform not in ("macosx", "win", "linux"):
+            return
+        w = float(Window.width)
+        if w <= 1.0:
+            return
+        width_ratio = w / UI_REF_WIDTH
+        width_ratio = max(UI_FONT_MIN_SCALE, min(UI_FONT_MAX_SCALE, width_ratio))
+        scale = width_ratio * UI_FONT_BASE_FACTOR
+        self.ui_font_scale = scale
+
+        if self._theme_font_styles_base is None:
+            self._theme_font_styles_base = copy.deepcopy(dict(self.theme_cls.font_styles))
+
+        base_styles = self._theme_font_styles_base
+        new_fs = copy.deepcopy(base_styles)
+        for style_name in new_fs:
+            for role_name in new_fs[style_name]:
+                base_sz = base_styles[style_name][role_name]["font-size"]
+                new_fs[style_name][role_name]["font-size"] = float(base_sz) * scale
+        self.theme_cls.font_styles = new_fs
 
     def _auto_login(self, _dt: float) -> None:
         """Perform a silent Supabase login without showing the login screen.

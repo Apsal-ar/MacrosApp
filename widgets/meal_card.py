@@ -32,17 +32,23 @@ Builder.load_string("""
 #:import RGBA_CARBS utils.constants.RGBA_CARBS
 #:import RGBA_FAT utils.constants.RGBA_FAT
 #:import dp kivy.metrics.dp
+#:import Widget kivy.uix.widget.Widget
 
 <_AddFoodBtn>:
+    orientation: "vertical"
     size_hint_y: None
-    height: "36dp"
+    height: self.minimum_height
+    padding: ["0dp", "0dp", "0dp", "0dp"]
 
     MDLabel:
-        text: "[size=15sp]+[/size]  Add food"
+        text: "[size=" + str(16 * app.ui_font_scale) + "sp]+[/size]  Add food"
         markup: True
         bold: True
         theme_font_size: "Custom"
-        font_size: "12sp"
+        font_size: str(14 * app.ui_font_scale) + 'sp'
+        adaptive_height: True
+        size_hint_y: None
+        line_height: 1.0
         halign: "center"
         valign: "middle"
         theme_text_color: "Custom"
@@ -52,8 +58,8 @@ Builder.load_string("""
     orientation: "vertical"
     size_hint_y: None
     height: self.minimum_height
-    padding: "8dp"
-    spacing: "4dp"
+    padding: ["8dp", "6dp", "8dp", "5dp"]
+    spacing: "2dp"
     radius: [dp(12)]
     elevation: 1
     ripple_behavior: False
@@ -62,8 +68,8 @@ Builder.load_string("""
     # Meal name header
     MDBoxLayout:
         size_hint_y: None
-        height: "36dp"
-        padding: ["8dp", "0dp", "0dp", "0dp"]
+        height: "40dp"
+        padding: ["8dp", "4dp", "0dp", "4dp"]
 
         MDLabel:
             id: label_display
@@ -193,10 +199,32 @@ Builder.load_string("""
                 size_hint_y: None
                 height: self.texture_size[1]
 
-    MDDivider:
+    # Bottom block: divider + vertically centred "Add food" in the space below it
+    MDBoxLayout:
+        orientation: "vertical"
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: "0dp"
 
-    _AddFoodBtn:
-        on_release: root.dispatch("on_add_food", root.meal_id)
+        MDDivider:
+
+        # Equal flex spacers above/below centre the row in this fixed-height band
+        MDBoxLayout:
+            orientation: "vertical"
+            size_hint_y: None
+            height: "48dp"
+            spacing: "0dp"
+
+            Widget:
+                size_hint_y: 1
+
+            _AddFoodBtn:
+                size_hint_y: None
+                height: self.minimum_height
+                on_release: root.dispatch("on_add_food", root.meal_id)
+
+            Widget:
+                size_hint_y: 1
 """)
 
 

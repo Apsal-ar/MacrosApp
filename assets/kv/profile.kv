@@ -1,12 +1,18 @@
+#:import RGBA_PRIMARY utils.constants.RGBA_PRIMARY
+#:import RGBA_FAT     utils.constants.RGBA_FAT
+#:import RGBA_CARBS   utils.constants.RGBA_CARBS
+#:import RGBA_PROTEIN utils.constants.RGBA_PROTEIN
+#:import Widget kivy.uix.widget.Widget
+
 <ProfileScreen>:
     MDBoxLayout:
         orientation: "vertical"
 
         MDBoxLayout:
             size_hint_y: None
-            height: "56dp"
+            height: self.minimum_height
             md_bg_color: app.theme_cls.primaryColor
-            padding: ["16dp", "0dp", "16dp", "0dp"]
+            padding: ["16sp", "14sp", "16sp", "14sp"]
 
             MDLabel:
                 text: "My Profile"
@@ -14,220 +20,312 @@
                 text_color: 1, 1, 1, 1
                 font_style: "Title"
                 role: "medium"
+                theme_font_size: "Custom"
+                font_size: str(22 * app.ui_font_scale) + 'sp'
                 halign: "center"
                 valign: "center"
+                adaptive_height: True
+                text_size: self.width, None
 
         MDScrollView:
             MDBoxLayout:
                 orientation: "vertical"
-                padding: ["16dp", "20dp", "16dp", "24dp"]
-                spacing: "12dp"
+                padding: ["16sp", "16sp", "16sp", "20sp"]
+                spacing: "12sp"
                 size_hint_y: None
                 height: self.minimum_height
 
-                # ── Personal stats card ────────────────────────────────
+                # ── Stats + Activity + Goal (unified card) ────────────
                 MDCard:
+                    orientation: "vertical"
                     size_hint_y: None
-                    height: "96dp"
-                    padding: ["16dp", "12dp", "16dp", "12dp"]
-                    radius: [dp(12)]
+                    height: self.minimum_height
+                    radius: [dp(12), dp(12), dp(12), dp(12)]
                     elevation: 2
-                    on_release: root.open_edit_sheet()
+                    padding: "0dp"
 
-                    MDBoxLayout:
-                        spacing: "4dp"
-
-                        # Height cell
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            spacing: "4dp"
-                            size_hint_x: 1
-
-                            MDLabel:
-                                id: height_value
-                                text: "—"
-                                font_style: "Title"
-                                role: "medium"
-                                halign: "center"
-                                size_hint_y: None
-                                height: "36dp"
-                                theme_text_color: "Custom"
-                                text_color: app.theme_cls.primaryColor
-
-                            MDLabel:
-                                text: "Height"
-                                font_style: "Body"
-                                role: "small"
-                                halign: "center"
-                                theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
-
-                        # Weight cell
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            spacing: "4dp"
-                            size_hint_x: 1
-
-                            MDLabel:
-                                id: weight_value
-                                text: "—"
-                                font_style: "Title"
-                                role: "medium"
-                                halign: "center"
-                                size_hint_y: None
-                                height: "36dp"
-                                theme_text_color: "Custom"
-                                text_color: app.theme_cls.primaryColor
-
-                            MDLabel:
-                                text: "Weight"
-                                font_style: "Body"
-                                role: "small"
-                                halign: "center"
-                                theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
-
-                        # Gender cell
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            spacing: "4dp"
-                            size_hint_x: 1
-
-                            MDLabel:
-                                id: gender_value
-                                text: "—"
-                                font_style: "Title"
-                                role: "medium"
-                                halign: "center"
-                                size_hint_y: None
-                                height: "36dp"
-                                theme_text_color: "Custom"
-                                text_color: app.theme_cls.primaryColor
-
-                            MDLabel:
-                                text: "Gender"
-                                font_style: "Body"
-                                role: "small"
-                                halign: "center"
-                                theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
-
-                        # Age cell
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            spacing: "4dp"
-                            size_hint_x: 1
-
-                            MDLabel:
-                                id: age_value
-                                text: "—"
-                                font_style: "Title"
-                                role: "medium"
-                                halign: "center"
-                                size_hint_y: None
-                                height: "36dp"
-                                theme_text_color: "Custom"
-                                text_color: app.theme_cls.primaryColor
-
-                            MDLabel:
-                                text: "Age"
-                                font_style: "Body"
-                                role: "small"
-                                halign: "center"
-                                theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
-
-                # ── Activity level card ────────────────────────────────
-                MDCard:
-                    size_hint_y: None
-                    height: "72dp"
-                    padding: ["16dp", "12dp", "16dp", "12dp"]
-                    radius: [dp(12)]
-                    elevation: 2
-                    on_release: root.open_edit_sheet()
-
-                    MDBoxLayout:
-                        spacing: "12dp"
+                    # Row 1: Height / Weight / Gender / Age
+                    MDCard:
+                        size_hint_y: None
+                        height: self.minimum_height
+                        padding: "0dp"
+                        elevation: 0
+                        radius: [dp(12), dp(12), 0, 0]
+                        on_release: root.open_edit_sheet()
 
                         MDBoxLayout:
-                            orientation: "vertical"
-                            spacing: "2dp"
-                            size_hint_x: 1
+                            padding: ["8sp", "12sp", "8sp", "12sp"]
+                            spacing: "4sp"
+                            size_hint_y: None
+                            height: self.minimum_height
 
-                            MDLabel:
-                                text: "Activity Level"
-                                font_style: "Body"
-                                role: "small"
-                                theme_text_color: "Secondary"
+                            # Height cell
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "4sp"
+                                size_hint_x: 1
                                 size_hint_y: None
-                                height: "20dp"
+                                height: self.minimum_height
 
-                            MDLabel:
-                                id: activity_value
-                                text: "Tap to set"
-                                font_style: "Title"
-                                role: "small"
+                                MDLabel:
+                                    id: height_value
+                                    text: "—"
+                                    font_style: "Title"
+                                    role: "medium"
+                                    theme_font_size: "Custom"
+                                    font_size: str(17 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Custom"
+                                    text_color: RGBA_PRIMARY[:4]
+
+                                MDLabel:
+                                    text: "Height"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Secondary"
+
+                            # Weight cell
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "4sp"
+                                size_hint_x: 1
                                 size_hint_y: None
-                                height: "28dp"
-                                theme_text_color: "Custom"
-                                text_color: app.theme_cls.primaryColor
+                                height: self.minimum_height
 
-                        MDLabel:
-                            text: "›"
-                            font_size: "22sp"
-                            size_hint_x: None
-                            width: "20dp"
-                            halign: "right"
-                            theme_text_color: "Secondary"
-                            pos_hint: {"center_y": 0.5}
+                                MDLabel:
+                                    id: weight_value
+                                    text: "—"
+                                    font_style: "Title"
+                                    role: "medium"
+                                    theme_font_size: "Custom"
+                                    font_size: str(17 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Custom"
+                                    text_color: RGBA_FAT[:4]
 
-                # ── Goal card ──────────────────────────────────────────
-                MDCard:
-                    size_hint_y: None
-                    height: "72dp"
-                    padding: ["16dp", "12dp", "16dp", "12dp"]
-                    radius: [dp(12)]
-                    elevation: 2
-                    on_release: root.open_edit_sheet()
+                                MDLabel:
+                                    text: "Weight"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Secondary"
 
-                    MDBoxLayout:
-                        spacing: "12dp"
+                            # Gender cell
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "4sp"
+                                size_hint_x: 1
+                                size_hint_y: None
+                                height: self.minimum_height
+
+                                MDLabel:
+                                    id: gender_value
+                                    text: "—"
+                                    font_style: "Title"
+                                    role: "medium"
+                                    theme_font_size: "Custom"
+                                    font_size: str(17 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Custom"
+                                    text_color: RGBA_CARBS[:4]
+
+                                MDLabel:
+                                    text: "Gender"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Secondary"
+
+                            # Age cell
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "4sp"
+                                size_hint_x: 1
+                                size_hint_y: None
+                                height: self.minimum_height
+
+                                MDLabel:
+                                    id: age_value
+                                    text: "—"
+                                    font_style: "Title"
+                                    role: "medium"
+                                    theme_font_size: "Custom"
+                                    font_size: str(17 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Custom"
+                                    text_color: RGBA_PROTEIN[:4]
+
+                                MDLabel:
+                                    text: "Age"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
+                                    halign: "center"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Secondary"
+
+                    MDDivider:
+
+                    # Row 2: Activity Level (text centered; chevron balances right)
+                    MDCard:
+                        size_hint_y: None
+                        height: self.minimum_height
+                        padding: "0dp"
+                        elevation: 0
+                        radius: [0, 0, 0, 0]
+                        on_release: root.open_edit_sheet()
 
                         MDBoxLayout:
-                            orientation: "vertical"
-                            spacing: "2dp"
-                            size_hint_x: 1
+                            padding: ["8sp", "12sp", "8sp", "12sp"]
+                            spacing: "0sp"
+                            size_hint_y: None
+                            height: self.minimum_height
+
+                            Widget:
+                                size_hint_x: None
+                                width: "28sp"
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "4sp"
+                                size_hint_x: 1
+                                size_hint_y: None
+                                height: self.minimum_height
+
+                                MDLabel:
+                                    text: "Activity Level"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
+                                    theme_text_color: "Secondary"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    halign: "center"
+                                    valign: "middle"
+
+                                MDLabel:
+                                    id: activity_value
+                                    text: "Tap to set"
+                                    font_style: "Title"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(18 * app.ui_font_scale) + 'sp'
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Custom"
+                                    text_color: app.theme_cls.primaryColor
+                                    halign: "center"
+                                    valign: "middle"
 
                             MDLabel:
-                                text: "Goal"
-                                font_style: "Body"
-                                role: "small"
+                                text: "›"
+                                font_size: str(26 * app.ui_font_scale) + 'sp'
+                                size_hint_x: None
+                                width: "28sp"
+                                halign: "center"
                                 theme_text_color: "Secondary"
+                                pos_hint: {"center_y": 0.5}
+
+                    MDDivider:
+
+                    # Row 3: Goal
+                    MDCard:
+                        size_hint_y: None
+                        height: self.minimum_height
+                        padding: "0dp"
+                        elevation: 0
+                        radius: [0, 0, dp(12), dp(12)]
+                        on_release: root.open_edit_sheet()
+
+                        MDBoxLayout:
+                            padding: ["8sp", "12sp", "8sp", "12sp"]
+                            spacing: "0sp"
+                            size_hint_y: None
+                            height: self.minimum_height
+
+                            Widget:
+                                size_hint_x: None
+                                width: "28sp"
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: "4sp"
+                                size_hint_x: 1
                                 size_hint_y: None
-                                height: "20dp"
+                                height: self.minimum_height
+
+                                MDLabel:
+                                    text: "Goal"
+                                    font_style: "Body"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
+                                    theme_text_color: "Secondary"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    halign: "center"
+                                    valign: "middle"
+
+                                MDLabel:
+                                    id: goal_value
+                                    text: "Tap to set"
+                                    font_style: "Title"
+                                    role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(18 * app.ui_font_scale) + 'sp'
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
+                                    theme_text_color: "Custom"
+                                    text_color: app.theme_cls.primaryColor
+                                    halign: "center"
+                                    valign: "middle"
+                                    shorten: True
+                                    shorten_from: "right"
 
                             MDLabel:
-                                id: goal_value
-                                text: "Tap to set"
-                                font_style: "Title"
-                                role: "small"
-                                size_hint_y: None
-                                height: "28dp"
-                                theme_text_color: "Custom"
-                                text_color: app.theme_cls.primaryColor
-
-                        MDLabel:
-                            text: "›"
-                            font_size: "22sp"
-                            size_hint_x: None
-                            width: "20dp"
-                            halign: "right"
-                            theme_text_color: "Secondary"
-                            pos_hint: {"center_y": 0.5}
+                                text: "›"
+                                font_size: str(26 * app.ui_font_scale) + 'sp'
+                                size_hint_x: None
+                                width: "28sp"
+                                halign: "center"
+                                theme_text_color: "Secondary"
+                                pos_hint: {"center_y": 0.5}
 
                 # ── Body metrics section ───────────────────────────────
                 MDCard:
@@ -240,44 +338,63 @@
 
                     MDCard:
                         size_hint_y: None
-                        height: "72dp"
+                        height: self.minimum_height
                         padding: "0dp"
                         elevation: 0
                         radius: [0]
                         on_release: root.open_bmi_info()
 
                         MDBoxLayout:
-                            padding: ["16dp", "12dp", "16dp", "12dp"]
-                            spacing: "12dp"
+                            padding: ["12sp", "12sp", "12sp", "12sp"]
+                            spacing: "12sp"
+                            size_hint_y: None
+                            height: self.minimum_height
+
+                            MDIcon:
+                                icon: "scale-bathroom"
+                                size_hint_x: None
+                                width: "36sp"
+                                font_size: str(30 * app.ui_font_scale) + 'sp'
+                                theme_text_color: "Custom"
+                                text_color: RGBA_PRIMARY[:4]
+                                pos_hint: {"center_y": 0.5}
 
                             MDBoxLayout:
                                 orientation: "vertical"
-                                spacing: "2dp"
+                                spacing: "4sp"
                                 size_hint_x: 1
+                                size_hint_y: None
+                                height: self.minimum_height
 
                                 MDLabel:
                                     text: "Body Mass Index"
                                     font_style: "Body"
                                     role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
                                     theme_text_color: "Secondary"
-                                    size_hint_y: None
-                                    height: "20dp"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
 
                                 MDLabel:
                                     id: bmi_value
                                     text: "—"
                                     font_style: "Title"
                                     role: "small"
-                                    size_hint_y: None
-                                    height: "28dp"
+                                    theme_font_size: "Custom"
+                                    font_size: str(18 * app.ui_font_scale) + 'sp'
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
                                     theme_text_color: "Custom"
                                     text_color: app.theme_cls.primaryColor
 
                             MDLabel:
                                 text: "›"
-                                font_size: "22sp"
+                                font_size: str(26 * app.ui_font_scale) + 'sp'
                                 size_hint_x: None
-                                width: "20dp"
+                                width: "28sp"
                                 halign: "right"
                                 theme_text_color: "Secondary"
                                 pos_hint: {"center_y": 0.5}
@@ -286,30 +403,47 @@
 
                     MDBoxLayout:
                         size_hint_y: None
-                        height: "72dp"
-                        padding: ["16dp", "12dp", "16dp", "12dp"]
-                        spacing: "12dp"
+                        height: self.minimum_height
+                        padding: ["12sp", "12sp", "12sp", "12sp"]
+                        spacing: "12sp"
+
+                        MDIcon:
+                            icon: "fire"
+                            size_hint_x: None
+                            width: "36sp"
+                            font_size: str(30 * app.ui_font_scale) + 'sp'
+                            theme_text_color: "Custom"
+                            text_color: RGBA_FAT[:4]
+                            pos_hint: {"center_y": 0.5}
 
                         MDBoxLayout:
                             orientation: "vertical"
-                            spacing: "2dp"
+                            spacing: "4sp"
                             size_hint_x: 1
+                            size_hint_y: None
+                            height: self.minimum_height
 
                             MDLabel:
                                 text: "Basal Metabolic Rate"
                                 font_style: "Body"
                                 role: "small"
+                                theme_font_size: "Custom"
+                                font_size: str(14 * app.ui_font_scale) + 'sp'
                                 theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
+                                adaptive_height: True
+                                text_size: self.width, None
+                                line_height: 1.0
 
                             MDLabel:
                                 id: bmr_value
                                 text: "—"
                                 font_style: "Title"
                                 role: "small"
-                                size_hint_y: None
-                                height: "28dp"
+                                theme_font_size: "Custom"
+                                font_size: str(18 * app.ui_font_scale) + 'sp'
+                                adaptive_height: True
+                                text_size: self.width, None
+                                line_height: 1.0
                                 theme_text_color: "Custom"
                                 text_color: app.theme_cls.primaryColor
 
@@ -317,44 +451,63 @@
 
                     MDCard:
                         size_hint_y: None
-                        height: "72dp"
+                        height: self.minimum_height
                         padding: "0dp"
                         elevation: 0
                         radius: [0]
                         on_release: root.open_body_fat_dialog()
 
                         MDBoxLayout:
-                            padding: ["16dp", "12dp", "16dp", "12dp"]
-                            spacing: "12dp"
+                            padding: ["12sp", "12sp", "12sp", "12sp"]
+                            spacing: "12sp"
+                            size_hint_y: None
+                            height: self.minimum_height
+
+                            MDIcon:
+                                icon: "percent"
+                                size_hint_x: None
+                                width: "36sp"
+                                font_size: str(30 * app.ui_font_scale) + 'sp'
+                                theme_text_color: "Custom"
+                                text_color: RGBA_CARBS[:4]
+                                pos_hint: {"center_y": 0.5}
 
                             MDBoxLayout:
                                 orientation: "vertical"
-                                spacing: "2dp"
+                                spacing: "4sp"
                                 size_hint_x: 1
+                                size_hint_y: None
+                                height: self.minimum_height
 
                                 MDLabel:
                                     text: "Body Fat"
                                     font_style: "Body"
                                     role: "small"
+                                    theme_font_size: "Custom"
+                                    font_size: str(14 * app.ui_font_scale) + 'sp'
                                     theme_text_color: "Secondary"
-                                    size_hint_y: None
-                                    height: "20dp"
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
 
                                 MDLabel:
                                     id: body_fat_value
                                     text: "Tap to calculate"
                                     font_style: "Title"
                                     role: "small"
-                                    size_hint_y: None
-                                    height: "28dp"
+                                    theme_font_size: "Custom"
+                                    font_size: str(18 * app.ui_font_scale) + 'sp'
+                                    adaptive_height: True
+                                    text_size: self.width, None
+                                    line_height: 1.0
                                     theme_text_color: "Custom"
                                     text_color: app.theme_cls.primaryColor
 
                             MDLabel:
                                 text: "›"
-                                font_size: "22sp"
+                                font_size: str(26 * app.ui_font_scale) + 'sp'
                                 size_hint_x: None
-                                width: "20dp"
+                                width: "28sp"
                                 halign: "right"
                                 theme_text_color: "Secondary"
                                 pos_hint: {"center_y": 0.5}
@@ -363,73 +516,100 @@
 
                     MDBoxLayout:
                         size_hint_y: None
-                        height: "72dp"
-                        padding: ["16dp", "12dp", "16dp", "12dp"]
-                        spacing: "12dp"
+                        height: self.minimum_height
+                        padding: ["12sp", "12sp", "12sp", "12sp"]
+                        spacing: "12sp"
+
+                        MDIcon:
+                            icon: "water"
+                            size_hint_x: None
+                            width: "36sp"
+                            font_size: str(30 * app.ui_font_scale) + 'sp'
+                            theme_text_color: "Custom"
+                            text_color: RGBA_PROTEIN[:4]
+                            pos_hint: {"center_y": 0.5}
 
                         MDBoxLayout:
                             orientation: "vertical"
-                            spacing: "2dp"
+                            spacing: "4sp"
                             size_hint_x: 1
+                            size_hint_y: None
+                            height: self.minimum_height
 
                             MDLabel:
                                 text: "Water Requirement"
                                 font_style: "Body"
                                 role: "small"
+                                theme_font_size: "Custom"
+                                font_size: str(14 * app.ui_font_scale) + 'sp'
                                 theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
+                                adaptive_height: True
+                                text_size: self.width, None
+                                line_height: 1.0
 
                             MDLabel:
                                 id: water_value
                                 text: "—"
                                 font_style: "Title"
                                 role: "small"
-                                size_hint_y: None
-                                height: "28dp"
+                                theme_font_size: "Custom"
+                                font_size: str(18 * app.ui_font_scale) + 'sp'
+                                adaptive_height: True
+                                text_size: self.width, None
+                                line_height: 1.0
                                 theme_text_color: "Custom"
                                 text_color: app.theme_cls.primaryColor
 
                 # ── Customize meals card ────────────────────────────────
                 MDCard:
                     size_hint_y: None
-                    height: "72dp"
-                    padding: ["16dp", "12dp", "16dp", "12dp"]
+                    height: self.minimum_height
+                    padding: ["12sp", "12sp", "12sp", "12sp"]
                     radius: [dp(12)]
                     elevation: 2
                     on_release: root.open_customize_meals()
 
                     MDBoxLayout:
-                        spacing: "12dp"
+                        spacing: "12sp"
+                        size_hint_y: None
+                        height: self.minimum_height
 
                         MDBoxLayout:
                             orientation: "vertical"
-                            spacing: "2dp"
+                            spacing: "4sp"
                             size_hint_x: 1
+                            size_hint_y: None
+                            height: self.minimum_height
 
                             MDLabel:
                                 text: "Customize meals"
                                 font_style: "Body"
                                 role: "small"
+                                theme_font_size: "Custom"
+                                font_size: str(14 * app.ui_font_scale) + 'sp'
                                 theme_text_color: "Secondary"
-                                size_hint_y: None
-                                height: "20dp"
+                                adaptive_height: True
+                                text_size: self.width, None
+                                line_height: 1.0
 
                             MDLabel:
                                 id: customize_meals_summary
                                 text: "Meals per day, names"
                                 font_style: "Title"
                                 role: "small"
-                                size_hint_y: None
-                                height: "28dp"
+                                theme_font_size: "Custom"
+                                font_size: str(18 * app.ui_font_scale) + 'sp'
+                                adaptive_height: True
+                                text_size: self.width, None
+                                line_height: 1.0
                                 theme_text_color: "Custom"
                                 text_color: app.theme_cls.primaryColor
 
                         MDLabel:
                             text: "›"
-                            font_size: "22sp"
+                            font_size: str(26 * app.ui_font_scale) + 'sp'
                             size_hint_x: None
-                            width: "20dp"
+                            width: "28sp"
                             halign: "right"
                             theme_text_color: "Secondary"
                             pos_hint: {"center_y": 0.5}
