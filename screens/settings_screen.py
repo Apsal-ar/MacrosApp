@@ -1,9 +1,8 @@
-"""Settings screen — unit toggle, My Foods, My Recipes, cloud status, export.
+"""Settings screen — formula info, My Foods, cloud status, export.
 
 Responsibilities:
-- Unit system toggle (metric / imperial)
+- Formula: summary of metric calculations (app uses metric only)
 - My Foods: list user-created manual foods; edit and swipe-to-delete
-- My Recipes: list recipes with per-serving macros; create/edit/delete
 - Cloud connection indicator
 - Data export: write meal history to CSV in the app's documents directory
 - About section with app version
@@ -15,19 +14,43 @@ import csv
 import io
 import logging
 import time
-from typing import List
+from typing import List, Optional
 
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivy.uix.widget import Widget
 from kivymd.app import MDApp
+from kivymd.uix.button import MDButtonText
+from kivymd.uix.dialog import (
+    MDDialog,
+    MDDialogButtonContainer,
+    MDDialogHeadlineText,
+    MDDialogSupportingText,
+)
 
 from screens.base_screen import BaseScreen
 from services.food_service import FoodService
-from services.repository import MealRepository, MealItemRepository, RecipeRepository, Repository
+from services.macro_calculator import MacroCalculator
+from services.repository import (
+    GoalsRepository,
+    MealRepository,
+    MealItemRepository,
+    ProfileRepository,
+    RecipeRepository,
+    Repository,
+)
 from models.food import Food
 from models.recipe import Recipe
 import config
 import widgets.macros_button  # noqa: F401 — registers Macros*Button for settings.kv
+from widgets.macros_button import MacrosFilledButton
+from utils.constants import (
+    ACTIVITY_LABELS,
+    ACTIVITY_MULTIPLIERS,
+    GOAL_LABELS,
+    GOAL_MODIFIERS,
+    RGBA_POPUP,
+)
 
 logger = logging.getLogger(__name__)
 Builder.load_file("assets/kv/settings.kv")
@@ -58,12 +81,7 @@ class SettingsScreen(BaseScreen):
     # ------------------------------------------------------------------
 
     def _refresh_all(self, dt: float) -> None:  # noqa: ARG002
-        self._refresh_unit_toggle()
         self._refresh_sync_status()
-
-    def _refresh_unit_toggle(self) -> None:
-        unit = self.get_unit_system()
-        self.ids.unit_switch.active = (unit == "imperial")
 
     def _refresh_sync_status(self) -> None:
         connected = Repository._supabase is not None
@@ -73,22 +91,132 @@ class SettingsScreen(BaseScreen):
         )
 
     # ------------------------------------------------------------------
-    # Unit system toggle
+    # Formula
     # ------------------------------------------------------------------
 
-    def on_unit_toggled(self, active: bool) -> None:
-        """Persist the unit system change to app state and profile.
+    def open_formula(self) -> None:
+        """Show how the daily calorie target is derived (BMR → TDEE → goal)."""
+        dlg_ref: list[MDDialog] = []
+        body = self._build_calorie_target_formula_text()
+        dlg = MDDialog(
+            MDDialogHeadlineText(text="Calorie target"),
+            MDDialogSupportingText(text=body),
+            MDDialogButtonContainer(
+                Widget(),
+                MacrosFilledButton(
+                    MDButtonText(text="Ok"),
+                    on_release=lambda *_a: dlg_ref[0].dismiss() if dlg_ref else None,
+                ),
+                spacing="8dp",
+            ),
+            theme_bg_color="Custom",
+            md_bg_color=RGBA_POPUP,
+        )
+        dlg_ref.append(dlg)
+        dlg.open()
 
-        Args:
-            active: True = imperial, False = metric.
-        """
-        unit = "imperial" if active else "metric"
-        try:
-            app = MDApp.get_running_app()
-            app.unit_system = unit
-        except Exception:  # pylint: disable=broad-except
-            pass
-        logger.info("Unit system set to %s", unit)
+    @staticmethod
+    def _mifflin_st_jeor_reference_block() -> str:
+        """Same equations as ``MacroCalculator.calculate_bmr`` (docstring)."""
+        return (
+            "Mifflin–St Jeor BMR (kcal/day):\n"
+            "  base = 10×weight(kg) + 6.25×height(cm) − 5×age\n"
+            "  Male:   BMR = base + 5\n"
+            "  Female: BMR = base − 161\n"
+            "  Other:  BMR = base − 78 (midpoint between male and female)\n"
+        )
+
+    def _build_calorie_target_formula_text(self) -> str:
+        """Explain BMR → TDEE → goal adjustment; include user numbers when possible."""
+        generic = (
+            self._mifflin_st_jeor_reference_block()
+            + "\n"
+            "Then your daily calorie target uses three steps:\n\n"
+            "1) BMR from your profile (kcal/day).\n\n"
+            "2) TDEE (maintenance): BMR × an activity multiplier (PAL) for your "
+            "activity level.\n\n"
+            "3) Goal: TDEE plus a fixed adjustment for your weight goal "
+            "(for example −250 kcal/day to lose slowly). "
+            "The result is never below 1200 kcal/day.\n\n"
+            "Complete your profile (Goals / Profile) to see your personal numbers here."
+        )
+
+        user_id = self.get_current_user_id()
+        if not user_id:
+            return generic
+
+        profile = self.get_repo(ProfileRepository).get(user_id)
+        if profile is None:
+            return generic
+
+        required = (
+            profile.weight_kg,
+            profile.height_cm,
+            profile.age,
+            profile.sex,
+            profile.activity,
+            profile.goal,
+        )
+        if any(v is None for v in required):
+            return generic
+
+        w, h, age, sex, activity, goal = required
+        fw, fh, iage = float(w), float(h), int(age)
+        sex_s = str(sex).lower()
+        bmr = MacroCalculator.calculate_bmr(fw, fh, iage, str(sex))
+        base = (10.0 * fw) + (6.25 * fh) - (5.0 * float(iage))
+        tdee = MacroCalculator.calculate_tdee(bmr, str(activity))
+        recommended = MacroCalculator.apply_goal_modifier(tdee, str(goal))
+
+        act_norm = MacroCalculator._ACTIVITY_ALIASES.get(str(activity), str(activity))
+        pal = ACTIVITY_MULTIPLIERS.get(
+            act_norm, ACTIVITY_MULTIPLIERS.get("moderate", 1.55)
+        )
+        goal_norm = MacroCalculator._GOAL_ALIASES.get(str(goal), str(goal))
+        delta = GOAL_MODIFIERS.get(goal_norm, GOAL_MODIFIERS["maintain"])
+        act_label = ACTIVITY_LABELS.get(act_norm, act_norm)
+        goal_label = GOAL_LABELS.get(goal_norm, goal_norm)
+
+        if sex_s == "male":
+            bmr_line = f"  Male:   BMR = {base:.0f} + 5 = {bmr:.0f} kcal/day"
+        elif sex_s == "female":
+            bmr_line = f"  Female: BMR = {base:.0f} − 161 = {bmr:.0f} kcal/day"
+        else:
+            bmr_line = f"  Other:  BMR = {base:.0f} − 78 = {bmr:.0f} kcal/day"
+
+        lines: List[str] = [
+            "Your daily calorie target is built from your profile:",
+            "",
+            "Mifflin–St Jeor BMR:",
+            f"  base = 10×{fw:.1f} + 6.25×{fh:.1f} − 5×{iage} = {base:.0f}",
+            bmr_line,
+            "",
+            f"1) TDEE (maintenance): BMR × PAL",
+            f"   {bmr:.0f} × {pal} ≈ {tdee:.0f} kcal/day",
+            f"   Activity: {act_label}.",
+            "",
+            f"2) Goal adjustment: {delta:+.0f} kcal/day ({goal_label})",
+            f"   Recommended intake: {recommended:.0f} kcal/day (min. 1200 kcal).",
+        ]
+
+        goals = self.get_repo(GoalsRepository).get_for_profile(user_id)
+        saved: Optional[float] = (
+            float(goals.calorie_target)
+            if goals is not None and goals.calorie_target is not None
+            else None
+        )
+        if saved is not None:
+            lines.append("")
+            lines.append(f"Saved target in Goals: {saved:.0f} kcal/day.")
+            if abs(saved - recommended) > 1.0:
+                lines.append(
+                    "You may have adjusted this on Goals (Caloric requirement)."
+                )
+        else:
+            lines.append("")
+            lines.append("Open Goals to save your calorie target.")
+
+        return "\n".join(lines)
 
     # ------------------------------------------------------------------
     # My Foods

@@ -271,6 +271,7 @@ class MacroTrackerApp(MDApp):
         tc.surfaceDimColor = RGBA_BG
         tc.surfaceContainerColor = RGBA_SURFACE
         tc.surfaceContainerLowColor = RGBA_SURFACE
+        tc.surfaceContainerLowestColor = RGBA_SURFACE
         tc.surfaceContainerHighColor = RGBA_SURFACE
         tc.surfaceContainerHighestColor = RGBA_SURFACE
         tc.primaryColor = RGBA_PRIMARY

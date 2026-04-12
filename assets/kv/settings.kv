@@ -25,19 +25,18 @@
                 size_hint_y: None
                 height: self.minimum_height
 
-                # ── Unit system ────────────────────────────────────────
+                # ── Formula ────────────────────────────────────────────
                 MDListItem:
+                    on_release: root.open_formula()
+
                     MDListItemHeadlineText:
-                        text: "Unit System"
+                        text: "Formula"
 
                     MDListItemSupportingText:
-                        id: unit_label
-                        text: "Metric / Imperial"
+                        text: "How your calorie target is calculated"
 
-                    MDSwitch:
-                        id: unit_switch
-                        pos_hint: {"center_y": 0.5}
-                        on_active: root.on_unit_toggled(self.active)
+                    MDListItemTrailingIcon:
+                        icon: "chevron-right"
 
                 MDDivider:
 

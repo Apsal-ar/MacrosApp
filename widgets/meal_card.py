@@ -28,6 +28,7 @@ class _AddFoodBtn(ButtonBehavior, MDBoxLayout):
 
 Builder.load_string("""
 #:import RGBA_PRIMARY utils.constants.RGBA_PRIMARY
+#:import RGBA_SURFACE utils.constants.RGBA_SURFACE
 #:import RGBA_PROTEIN utils.constants.RGBA_PROTEIN
 #:import RGBA_CARBS utils.constants.RGBA_CARBS
 #:import RGBA_FAT utils.constants.RGBA_FAT
@@ -64,6 +65,12 @@ Builder.load_string("""
     elevation: 1
     ripple_behavior: False
     focus_behavior: False
+    # Disable Material state-layer opacity (hover/press overlay on desktop).
+    state_hover: 0
+    state_press: 0
+    state_layer_color: 0, 0, 0, 0
+    theme_bg_color: "Custom"
+    md_bg_color: RGBA_SURFACE[:4]
 
     # Meal name header
     MDBoxLayout:
@@ -262,6 +269,12 @@ class MealCard(MDCard):
     _fat_summary = StringProperty("0")
 
     __events__ = ("on_add_food", "on_delete_item", "on_edit_item")
+
+    def on_enter(self) -> None:
+        """Ignore mouse hover: MDCard would otherwise tint via StateLayerBehavior."""
+
+    def on_leave(self) -> None:
+        """Ignore mouse leave (paired with :meth:`on_enter`)."""
 
     def set_targets(self, cal: float, protein: float, carbs: float, fat: float) -> None:
         """Set per-meal targets and refresh the summary labels."""
